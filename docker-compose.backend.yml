@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: treed-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-treed_db}
+      POSTGRES_USER: ${POSTGRES_USER:-treed_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-treed_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./services/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-treed_user} -d ${POSTGRES_DB:-treed_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: treed-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-treed_user}:${POSTGRES_PASSWORD:-treed_password}@postgres:5432/${POSTGRES_DB:-treed_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
+
+volumes:
+  postgres-data:
+    driver: local

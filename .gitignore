@@ -1,0 +1,6 @@
+node_modules
+.env 
+mobile-app
+backend
+docker-compose.yml
+.dockerignore
