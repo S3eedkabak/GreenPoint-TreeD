@@ -10,6 +10,7 @@ const SettingsScreen = ({ navigation }) => {
   const [unsyncedCount, setUnsyncedCount] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCalibrated, setIsCalibrated] = useState(false); // Calibration state
 
   useEffect(() => {
     loadTreeCount();
@@ -85,11 +86,17 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const MenuItem = ({ icon, title, subtitle, onPress, color = '#00D9A5', danger = false, badge = null }) => (
+  const handleCalibration = () => {
+    setIsCalibrated(true);
+    Alert.alert('Calibration Complete', 'Position has been calibrated successfully.');
+  };
+
+  const MenuItem = ({ icon, title, subtitle, onPress, color = '#00D9A5', danger = false, badge = null, disabled = false }) => (
     <TouchableOpacity
       style={styles.menuItem}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={disabled}
     >
       <View style={[styles.menuIcon, { backgroundColor: `${color}20` }]}>
         <Ionicons name={icon} size={24} color={danger ? '#FF6B6B' : color} />
@@ -152,6 +159,28 @@ const SettingsScreen = ({ navigation }) => {
         />
       </View>
 
+      {/* Calibration Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Calibration</Text>
+        
+        <MenuItem
+          icon="compass-outline"
+          title="Calibrate Position"
+          subtitle="Required before adding measurements"
+          onPress={handleCalibration}
+          color="#FFA500"
+        />
+
+        <MenuItem
+          icon="add-circle-outline"
+          title="Add New Measurement"
+          subtitle="Calibrate position to enable"
+          onPress={() => Alert.alert('Action', 'Add new measurement action')}
+          color="#00D9A5"
+          disabled={!isCalibrated} // Disable until calibrated
+        />
+      </View>
+
       {/* App Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Application</Text>
@@ -182,7 +211,7 @@ const SettingsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   content: {
     padding: 20,
@@ -191,7 +220,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statCard: {
-    backgroundColor: 'rgba(0, 217, 165, 0.1)',
+    backgroundColor: 'rgba(0, 217, 165, 0.08)',
     borderRadius: 20,
     padding: 30,
     alignItems: 'center',
@@ -213,7 +242,7 @@ const styles = StyleSheet.create({
   offlineNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 217, 165, 0.1)',
+    backgroundColor: 'rgba(0, 217, 165, 0.08)',
     padding: 12,
     borderRadius: 12,
     marginBottom: 30,
@@ -241,7 +270,7 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(0, 217, 165, 0.03)',
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
@@ -266,7 +295,7 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#222',
     marginBottom: 4,
   },
   menuSubtitle: {
@@ -285,6 +314,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  unmatchedBackground: {
+    backgroundColor: '#FFF3E0', // Light orange background for unmatched records
   },
 });
 
