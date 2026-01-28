@@ -87,8 +87,22 @@ const MapScreen = ({ navigation }) => {
   const loadTrees = async () => {
     try {
       const allTrees = await getAllTrees();
+      console.log('🌳 Total trees loaded:', allTrees.length);
+      
+      // Debug each tree
+      allTrees.forEach((tree, index) => {
+        console.log(`Tree ${index + 1}:`, {
+          id: tree.tree_id,
+          species: tree.species,
+          northing: tree.northing,
+          easting: tree.easting,
+          hasCoords: !!(tree.northing && tree.easting)
+        });
+      });
+      
       setTrees(allTrees);
     } catch (error) {
+      console.error('❌ Error loading trees:', error);
       Alert.alert('Error', 'Failed to load trees from database');
     }
   };
@@ -160,27 +174,7 @@ const MapScreen = ({ navigation }) => {
   };
 
   // Modify the trees rendering logic
-  const filteredTrees = userLocation
-    ? trees.filter(
-        (tree) =>
-        calculateDistance(userLocation, {
-            latitude: tree.northing,
-            longitude: tree.easting,
-          }) < 500 // Show trees within 500 meters
-      )
-    : trees;
-
-  const closestTree = userLocation
-    ? filteredTrees.reduce((closest, tree) => {
-        const distance = calculateDistance(userLocation, {
-          latitude: tree.northing,
-          longitude: tree.easting,
-        });
-        return distance < closest.distance
-          ? { tree, distance }
-          : closest;
-      }, { tree: null, distance: Infinity }).tree
-    : null;
+  const filteredTrees = trees;
 
   if (loading) {
     return (
@@ -229,28 +223,23 @@ const MapScreen = ({ navigation }) => {
           </>
         )}
 
-        {filteredTrees.map((tree) => (
-          <Marker
-            key={tree.tree_id}
-            coordinate={{
-              latitude: tree.northing,
-              longitude: tree.easting,
-            }}
-            onPress={() => handleTreePress(tree)}
-          >
-            <View
-              style={{
-                backgroundColor: tree.speciesColor || 'rgba(100, 100, 100, 0.5)', // Muted color palette
-                width: tree.crownDiameter || 30, // Scale diameter
-                height: tree.crownDiameter || 30,
-                borderRadius: (tree.crownDiameter || 30) / 2,
-                opacity: 0.5,
-                borderWidth: closestTree?.tree_id === tree.tree_id ? 3 : 0, // Highlight closest tree
-                borderColor: closestTree?.tree_id === tree.tree_id ? '#FFD700' : 'transparent',
+        {filteredTrees.map((tree) => {
+          console.log('📍 Rendering marker for:', tree.species, tree.northing, tree.easting);
+          return (
+            <Marker
+              key={tree.tree_id}
+              coordinate={{
+                latitude: tree.northing,
+                longitude: tree.easting,
               }}
-            />
-          </Marker>
-        ))}
+              onPress={() => handleTreePress(tree)}
+            >
+              <View style={styles.treeMarker}>
+                <Ionicons name="leaf" size={28} color="#4CAF50" />
+              </View>
+            </Marker>
+          );
+        })}
 
         {selectedCoords && (
           <Marker coordinate={selectedCoords}>
