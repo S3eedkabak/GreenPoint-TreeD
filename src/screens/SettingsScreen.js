@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { getAllTrees, syncUnsyncedTrees, exportToCSV } from '../database/db';
+import * as DocumentPicker from 'expo-document-picker';
+import { getAllTrees, syncUnsyncedTrees, exportToCSV, importFromCSV } from '../database/db';
 
 const SettingsScreen = ({ navigation }) => {
   const [treeCount, setTreeCount] = useState(0);
   const [unsyncedCount, setUnsyncedCount] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     loadTreeCount();
@@ -85,27 +87,102 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const MenuItem = ({ icon, title, subtitle, onPress, color = '#00D9A5', danger = false, badge = null }) => (
+  const handleImportCSV = async () => {
+    try {
+      // Request document picker
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', 'application/csv'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return; // User cancelled
+      }
+
+      setIsImporting(true);
+
+      // Read file content
+      const fileUri = result.assets[0].uri;
+      const csvContent = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: 'utf8',
+      });
+
+      // Import trees
+      const importResult = await importFromCSV(csvContent);
+
+      // Show results
+      let message = `✅ Import Complete!\n\n`;
+      message += `Imported: ${importResult.imported} trees\n`;
+      message += `Total rows: ${importResult.total}\n`;
+      
+      if (importResult.errors > 0) {
+        message += `Errors: ${importResult.errors}\n\n`;
+        message += `Error details:\n${importResult.errorDetails.slice(0, 5).join('\n')}`;
+        if (importResult.errorDetails.length > 5) {
+          message += `\n... and ${importResult.errorDetails.length - 5} more`;
+        }
+      }
+
+      Alert.alert('Import Results', message, [
+        { 
+          text: 'OK', 
+          onPress: () => {
+            loadTreeCount(); // Refresh tree count
+          }
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert(
+        '❌ Import Failed', 
+        `Could not import CSV file: ${error.message}`
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const MenuItem = ({ icon, title, subtitle, onPress, color = '#00D9A5', danger = false, badge = null, disabled = false }) => (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, disabled && styles.menuItemDisabled]}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={disabled}
     >
       <View style={[styles.menuIcon, { backgroundColor: `${color}20` }]}>
-        <Ionicons name={icon} size={24} color={danger ? '#FF6B6B' : color} />
+        <Ionicons 
+          name={icon} 
+          size={24} 
+          color={disabled ? '#666' : (danger ? '#FF6B6B' : color)} 
+        />
       </View>
       <View style={styles.menuContent}>
         <View style={styles.menuTitleRow}>
-          <Text style={[styles.menuTitle, danger && { color: '#FF6B6B' }]}>{title}</Text>
+          <Text style={[
+            styles.menuTitle, 
+            danger && { color: '#FF6B6B' },
+            disabled && { color: '#666' }
+          ]}>
+            {title}
+          </Text>
           {badge !== null && badge > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{badge}</Text>
             </View>
           )}
         </View>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+        {subtitle && (
+          <Text style={[styles.menuSubtitle, disabled && { color: '#555' }]}>
+            {subtitle}
+          </Text>
+        )}
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#666" />
+      {disabled ? (
+        <ActivityIndicator size="small" color="#666" />
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color="#666" />
+      )}
     </TouchableOpacity>
   );
 
@@ -146,9 +223,19 @@ const SettingsScreen = ({ navigation }) => {
         <MenuItem
           icon="download-outline"
           title="Export to CSV"
-          subtitle="Download all tree data"
+          subtitle={isExporting ? "Exporting..." : "Download all tree data"}
           onPress={handleExportCSV}
           color="#00D9A5"
+          disabled={isExporting}
+        />
+
+        <MenuItem
+          icon="upload-outline"
+          title="Import from CSV"
+          subtitle={isImporting ? "Importing..." : "Load trees from CSV file"}
+          onPress={handleImportCSV}
+          color="#FF6B6B"
+          disabled={isImporting}
         />
       </View>
 
@@ -285,6 +372,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  menuItemDisabled: {
+    opacity: 0.5,
   },
 });
 
