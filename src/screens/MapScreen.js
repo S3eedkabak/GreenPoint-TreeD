@@ -1,33 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Alert, Animated, ActivityIndicator } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps'; // import map from react-native-maps
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
 
 const MapScreen = ({ navigation }) => {
-  const [trees, setTrees] = useState([]);
-  const [userLocation, setUserLocation] = useState(null);
-  const [selectedCoords, setSelectedCoords] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const mapRef = useRef(null);
-  const fabScale = useRef(new Animated.Value(0)).current;
+  const [trees, setTrees] = useState([]); // stores where trees are (markers)
+  const [userLocation, setUserLocation] = useState(null); // stores user location
+  const [selectedCoords, setSelectedCoords] = useState(null); // stores selected coords for new tree (when tapping))
+  const [loading, setLoading] = useState(true); // loading state while getting location
+  const mapRef = useRef(null); // 
+  const fabScale = useRef(new Animated.Value(0)).current; 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    requestLocationPermission();
+    requestLocationPermission(); // request location perm
     loadTrees();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener('focus', () => { // refresh trees when screen is focused
       loadTrees();
     });
-    return unsubscribe;
+    return unsubscribe; // cleanup
   }, [navigation]);
 
-  useEffect(() => {
-    Animated.spring(fabScale, {
+  useEffect(() => { // animate pulse user marker
+    Animated.spring(fabScale, { 
       toValue: 1,
       friction: 5,
       useNativeDriver: true,
@@ -49,16 +49,16 @@ const MapScreen = ({ navigation }) => {
     ).start();
   }, []);
 
-  const requestLocationPermission = async () => {
+  const requestLocationPermission = async () => { // request location permission and get user location
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required to use this app');
         setLoading(false);
-        return;
+        return; // exit if permission not granted
       }
 
-      const location = await Location.getCurrentPositionAsync({
+      const location = await Location.getCurrentPositionAsync({ // get user location after permission granted
         accuracy: Location.Accuracy.High,
       });
 
@@ -67,11 +67,11 @@ const MapScreen = ({ navigation }) => {
         longitude: location.coords.longitude,
       };
 
-      setUserLocation(userCoords);
+      setUserLocation(userCoords); // set user location
       setLoading(false);
 
       if (mapRef.current) {
-        mapRef.current.animateToRegion({
+        mapRef.current.animateToRegion({ // center map on user location
           ...userCoords,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
@@ -83,22 +83,22 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  const loadTrees = async () => {
+  const loadTrees = async () => { // load trees from database
     try {
       const allTrees = await getAllTrees();
-      setTrees(allTrees);
+      setTrees(allTrees); // set trees state
     } catch (error) {
       Alert.alert('Error', 'Failed to load trees from database');
     }
   };
 
-  const handleMapPress = (event) => {
+  const handleMapPress = (event) => { // handle map press to select location for new tree
     const coords = event.nativeEvent.coordinate;
     setSelectedCoords(coords);
   };
 
-  const handleAddTree = () => {
-    if (!selectedCoords) {
+  const handleAddTree = () => { // navigate to AddTree screen with selected coords
+    if (!selectedCoords) { 
       Alert.alert('No Location Selected', 'Please tap on the map to select a location first');
       return;
     }
@@ -109,11 +109,11 @@ const MapScreen = ({ navigation }) => {
     setSelectedCoords(null);
   };
 
-  const handleTreePress = (tree) => {
+  const handleTreePress = (tree) => { // navigate to TreeDetail screen with tree ID
     navigation.navigate('TreeDetail', { treeId: tree.tree_id });
   };
 
-  const centerOnUser = () => {
+  const centerOnUser = () => { // center map on user location
     if (userLocation && mapRef.current) {
       mapRef.current.animateToRegion({
         ...userLocation,
@@ -122,7 +122,7 @@ const MapScreen = ({ navigation }) => {
       }, 500);
     }
   };
-
+    //styling
   if (loading) {
     return (
       <View style={styles.loadingContainer}>

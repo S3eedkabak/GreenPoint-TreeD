@@ -36,7 +36,7 @@ const SettingsScreen = ({ navigation }) => {
         Alert.alert('Sync Complete', `${result.synced} trees synced to cloud`);
         loadTreeCount();
       } else {
-        Alert.alert('ℹ️ Info', result.message);
+        Alert.alert('Info', result.message);
       }
     } catch (error) {
       Alert.alert('Sync Failed', 'No internet connection. Data saved locally.');
@@ -75,7 +75,7 @@ const SettingsScreen = ({ navigation }) => {
       if (canShare) {
         await Sharing.shareAsync(fileUri);
       } else {
-        Alert.alert('✅ Export Complete', `CSV saved to: ${fileUri}`);
+        Alert.alert('Export Complete', `CSV saved to: ${fileUri}`);
       }
     } catch (error) {
       console.error('Export error:', error);

@@ -12,7 +12,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { insertTree } from '../database/db';
+import { insertTree } from '../database/db'; // local DB
 
 const AddTreeScreen = ({ route, navigation }) => {
   const { latitude, longitude } = route.params;
@@ -84,7 +84,7 @@ const AddTreeScreen = ({ route, navigation }) => {
 
     setIsSaving(true);
     try {
-      await insertTree(
+      await insertTree( //  insert the values to db @ database/db.js
         species.trim(),
         heightValue,
         latitude,
@@ -108,7 +108,7 @@ const AddTreeScreen = ({ route, navigation }) => {
       setIsSaving(false);
     }
   };
-
+          // styling for the screen
   return (
     <KeyboardAvoidingView
       style={styles.container}
