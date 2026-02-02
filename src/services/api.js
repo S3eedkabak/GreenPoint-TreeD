@@ -1,3 +1,6 @@
+// API used to interact with the optional CLOUD BACKEND - DOCKER. GET AND PUBLISH TREE DATA 
+
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
 export const api = {

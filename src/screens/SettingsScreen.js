@@ -33,13 +33,13 @@ const SettingsScreen = ({ navigation }) => {
       const result = await syncUnsyncedTrees();
       
       if (result.synced > 0) {
-        Alert.alert('✅ Sync Complete', `${result.synced} trees synced to cloud`);
+        Alert.alert('Sync Complete', `${result.synced} trees synced to cloud`);
         loadTreeCount();
       } else {
         Alert.alert('ℹ️ Info', result.message);
       }
     } catch (error) {
-      Alert.alert('❌ Sync Failed', 'No internet connection. Data saved locally.');
+      Alert.alert('Sync Failed', 'No internet connection. Data saved locally.');
     } finally {
       setIsSyncing(false);
     }
@@ -68,7 +68,7 @@ const SettingsScreen = ({ navigation }) => {
         encoding: 'utf8',
       });
 
-      console.log('✅ CSV file created:', fileUri);
+      console.log('CSV file created:', fileUri);
 
       // Share the file
       const canShare = await Sharing.isAvailableAsync();
@@ -79,7 +79,7 @@ const SettingsScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Export error:', error);
-      Alert.alert('❌ Export Failed', `Could not export CSV file: ${error.message}`);
+      Alert.alert('Export Failed', `Could not export CSV file: ${error.message}`);
     } finally {
       setIsExporting(false);
     }

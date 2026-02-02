@@ -1,9 +1,9 @@
-// Simple test without Jest
+// Simple test without Jest (for sprint 1)
 const assert = require('assert');
 
 console.log('Running Tree Addition Tests...\n');
 
-// Test 1: UUID generates unique IDs for trees
+// Test 1 UUID generates unique IDs for trees
 try {
   const { v4 } = require('uuid');
   const id1 = v4();
@@ -18,11 +18,11 @@ try {
   process.exit(1);
 }
 
-// Test 2: Tree data structure validation
+// Test 2 Tree data structure validation
 try {
   const treeData = {
     species: 'Oak',
-    latitude: 37.78825,
+    latitude: 37.78825,  // Hard coded for the sake of testing if the structure is valid, not the actual location
     longitude: -122.4324,
     height: 15.5,
     diameter: 2.3,

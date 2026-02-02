@@ -97,13 +97,13 @@ const AddTreeScreen = ({ route, navigation }) => {
       );
       
       Alert.alert(
-        '✅ Success',
+        'Success',
         'Tree added successfully!',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Error saving tree:', error);
-      Alert.alert('❌ Error', 'Failed to save tree to database');
+      Alert.alert('Error', 'Failed to save tree to database');
     } finally {
       setIsSaving(false);
     }
