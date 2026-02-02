@@ -1,6 +1,7 @@
 node_modules
 .env 
-mobile-app
+.expo
 backend
 docker-compose.yml
 .dockerignore
+

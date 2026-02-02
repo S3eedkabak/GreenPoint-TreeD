@@ -87,7 +87,7 @@ const AddTreeScreen = ({ route, navigation }) => {
 
     setIsSaving(true);
     try {
-      await insertTree(
+      await insertTree( //  insert the values to db @ database/db.js
         species.trim(),
         heightValue,
         latitude,
@@ -100,13 +100,13 @@ const AddTreeScreen = ({ route, navigation }) => {
       );
       
       Alert.alert(
-        '✅ Success',
+        'Success',
         'Tree added successfully!',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Error saving tree:', error);
-      Alert.alert('❌ Error', 'Failed to save tree to database');
+      Alert.alert('Error', 'Failed to save tree to database');
     } finally {
       setIsSaving(false);
     }
