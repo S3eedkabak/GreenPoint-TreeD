@@ -4,3 +4,4 @@ mobile-app
 backend
 docker-compose.yml
 .dockerignore
+.expo
