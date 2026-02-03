@@ -1,6 +1,8 @@
 node_modules
-.env 
-mobile-app
+.env
+.expo/
 backend
 docker-compose.yml
 .dockerignore
+/ios/
+.DS_Store

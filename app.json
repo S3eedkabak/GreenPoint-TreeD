@@ -14,7 +14,8 @@
     "ios": {
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to place trees on the map."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.tree-d-mobile-app"
     },
     "plugins": [
       "expo-sqlite"

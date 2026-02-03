@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { getAllTrees, syncUnsyncedTrees, exportToCSV, importFromCSV } from '../database/db';
@@ -35,13 +35,13 @@ const SettingsScreen = ({ navigation }) => {
       const result = await syncUnsyncedTrees();
       
       if (result.synced > 0) {
-        Alert.alert('✅ Sync Complete', `${result.synced} trees synced to cloud`);
+        Alert.alert('Sync Complete', `${result.synced} trees synced to cloud`);
         loadTreeCount();
       } else {
-        Alert.alert('ℹ️ Info', result.message);
+        Alert.alert('Info', result.message);
       }
     } catch (error) {
-      Alert.alert('❌ Sync Failed', 'No internet connection. Data saved locally.');
+      Alert.alert('Sync Failed', 'No internet connection. Data saved locally.');
     } finally {
       setIsSyncing(false);
     }
@@ -70,18 +70,18 @@ const SettingsScreen = ({ navigation }) => {
         encoding: 'utf8',
       });
 
-      console.log('✅ CSV file created:', fileUri);
+      console.log('CSV file created:', fileUri);
 
       // Share the file
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(fileUri);
       } else {
-        Alert.alert('✅ Export Complete', `CSV saved to: ${fileUri}`);
+        Alert.alert('Export Complete', `CSV saved to: ${fileUri}`);
       }
     } catch (error) {
       console.error('Export error:', error);
-      Alert.alert('❌ Export Failed', `Could not export CSV file: ${error.message}`);
+      Alert.alert('Export Failed', `Could not export CSV file: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
@@ -239,6 +239,28 @@ const SettingsScreen = ({ navigation }) => {
         />
       </View>
 
+      {/* Calibration Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Calibration</Text>
+        
+        <MenuItem
+          icon="compass-outline"
+          title="Calibrate Position"
+          subtitle="Required before adding measurements"
+          onPress={handleCalibration}
+          color="#FFA500"
+        />
+
+        <MenuItem
+          icon="add-circle-outline"
+          title="Add New Measurement"
+          subtitle="Calibrate position to enable"
+          onPress={() => Alert.alert('Action', 'Add new measurement action')}
+          color="#00D9A5"
+          disabled={!isCalibrated} // Disable until calibrated
+        />
+      </View>
+
       {/* App Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Application</Text>
@@ -269,7 +291,7 @@ const SettingsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   content: {
     padding: 20,
@@ -278,7 +300,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statCard: {
-    backgroundColor: 'rgba(0, 217, 165, 0.1)',
+    backgroundColor: 'rgba(0, 217, 165, 0.08)',
     borderRadius: 20,
     padding: 30,
     alignItems: 'center',
@@ -300,7 +322,7 @@ const styles = StyleSheet.create({
   offlineNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 217, 165, 0.1)',
+    backgroundColor: 'rgba(0, 217, 165, 0.08)',
     padding: 12,
     borderRadius: 12,
     marginBottom: 30,
@@ -328,7 +350,7 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(0, 217, 165, 0.03)',
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
@@ -353,7 +375,7 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#222',
     marginBottom: 4,
   },
   menuSubtitle: {

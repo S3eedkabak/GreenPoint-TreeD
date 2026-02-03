@@ -2,11 +2,10 @@ import * as SQLite from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
 import { api } from '../services/api';
 
-let db = null;
-const ENABLE_CLOUD_SYNC = process.env.EXPO_PUBLIC_ENABLE_CLOUD_SYNC === 'true';
+let db;
 
 const generateUUID = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -23,7 +22,7 @@ const openDatabase = async () => {
 export const initDatabase = async () => {
   try {
     const database = await openDatabase();
-    
+
     // REMOVED DROP TABLE - now data persists!
     // Only CREATE IF NOT EXISTS - preserves existing data
     await database.execAsync(`
@@ -40,8 +39,6 @@ export const initDatabase = async () => {
         crown_radius REAL,
         crown_completeness REAL,
         tags TEXT,
-        cloud_id INTEGER,
-        synced INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
@@ -50,7 +47,7 @@ export const initDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_trees_species ON trees(species);
     `);
     
-    console.log('✅ Local database initialized (data persists between restarts)');
+    console.log('Local database initialized (data persists between restarts)');
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;
@@ -60,36 +57,20 @@ export const initDatabase = async () => {
 export const insertTree = async (species, treeHeight, latitude, longitude, dbh = null, crownHeight = null, crownRadius = null, crownCompleteness = null, tags = null) => {
   try {
     const database = await openDatabase();
-    
+
     // Generate UUID and current date (CSV spec)
     const treeId = generateUUID();
     const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-    
+
     const localResult = await database.runAsync(
       `INSERT INTO trees (
         tree_id, date, northing, easting, species, dbh,
-        tree_height, crown_height, crown_radius, crown_completeness, tags, synced
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [treeId, date, latitude, longitude, species, dbh, treeHeight, crownHeight, crownRadius, crownCompleteness, tags, 0]
+        tree_height, crown_height, crown_radius, crown_completeness, tags
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [treeId, date, latitude, longitude, species, dbh, treeHeight, crownHeight, crownRadius, crownCompleteness, tags]
     );
 
-    console.log('✅ Tree saved locally:', treeId);
-
-    if (ENABLE_CLOUD_SYNC) {
-      try {
-        const cloudTree = await api.createTree(species, treeHeight, latitude, longitude);
-        if (cloudTree) {
-          await database.runAsync(
-            'UPDATE trees SET cloud_id = ?, synced = 1 WHERE tree_id = ?',
-            [cloudTree.id, treeId]
-          );
-          console.log('☁️ Tree synced to cloud:', cloudTree.id);
-        }
-      } catch (cloudError) {
-        console.log('📡 No internet - data saved locally only');
-      }
-    }
-
+    console.log('Tree saved locally:', treeId);
     return treeId;
   } catch (error) {
     console.error('Error inserting tree:', error);
@@ -97,44 +78,44 @@ export const insertTree = async (species, treeHeight, latitude, longitude, dbh =
   }
 };
 
-export const getAllTrees = async (filters = {}) => {
+export const getAllTrees = async (filters = {}) => { // get all or with filters
   try {
     const database = await openDatabase();
     let query = 'SELECT * FROM trees WHERE 1=1';
     const params = [];
-    
-    if (filters.species) {
+
+    if (filters.species) { // case-insensitive search
       query += ' AND LOWER(species) LIKE LOWER(?)';
       params.push(`%${filters.species}%`);
     }
-    
-    if (filters.minHeight) {
+
+    if (filters.minHeight) { // minimum tree height filter
       query += ' AND tree_height >= ?';
       params.push(filters.minHeight);
     }
-    
-    if (filters.maxHeight) {
+
+    if (filters.maxHeight) { // maximum tree height filter
       query += ' AND tree_height <= ?';
       params.push(filters.maxHeight);
     }
-    
-    if (filters.startDate) {
+
+    if (filters.startDate) { // date start range filter
       query += ' AND date >= ?';
       params.push(filters.startDate);
     }
-    
-    if (filters.endDate) {
+
+    if (filters.endDate) { // date end range filter
       query += ' AND date <= ?';
       params.push(filters.endDate);
     }
-    
-    query += ' ORDER BY created_at DESC';
-    
+
+    query += ' ORDER BY created_at DESC'; // most recent first
+
     const trees = await database.getAllAsync(query, params);
     console.log(`📱 Fetched ${trees.length} trees from local database`);
     return trees;
   } catch (error) {
-    console.error('Error fetching trees:', error);
+    console.error('Error fetching trees:', error); // detailed logging
     throw error;
   }
 };
@@ -352,7 +333,7 @@ export const syncUnsyncedTrees = async () => {
 
     console.log(`📤 Syncing ${unsyncedTrees.length} trees to cloud...`);
     const cloudTrees = await api.syncTrees(unsyncedTrees);
-    
+
     for (let i = 0; i < cloudTrees.length; i++) {
       await database.runAsync(
         'UPDATE trees SET cloud_id = ?, synced = 1 WHERE tree_id = ?',
