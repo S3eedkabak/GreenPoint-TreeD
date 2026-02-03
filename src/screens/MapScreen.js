@@ -21,13 +21,13 @@ const MapScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => { // refresh trees when screen is focused
+    const unsubscribe = navigation.addListener('focus', () => { // refresh trees when screen is focused to make sure new ones show up
       loadTrees();
     });
     return unsubscribe; // cleanup
   }, [navigation]);
 
-  useEffect(() => { // animate pulse user marker
+  useEffect(() => { // animation for user location mark
     Animated.spring(fabScale, { 
       toValue: 1,
       friction: 5,
@@ -138,7 +138,7 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  const handleRegionChange = (region) => {
+  const handleRegionChange = (region) => { // pin enhancement - track center coords
     setCenterCoords({
       latitude: region.latitude,
       longitude: region.longitude,
@@ -155,7 +155,7 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  // Add utility function to calculate distance between two coordinates
+  // Add utility function to calculate distance between two coordinates (User and tree)
   const calculateDistance = (coord1, coord2) => {
     const toRad = (value) => (value * Math.PI) / 180;
     const R = 6371e3; // Earth radius in meters

@@ -11,19 +11,18 @@ const generateUUID = () => {
   });
 };
 
-const openDatabase = async () => {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync('trees.db');
+const openDatabase = async () => { // Singleton pattern / ONLY ONE SHOULD EXIST AT ALL TIMES
+  if (!db) {  // if no db
+    db = await SQLite.openDatabaseAsync('trees.db'); // open or create
   }
-  return db;
+  return db; // return existing or new database instance
 };
 
-export const initDatabase = async () => {
+export const initDatabase = async () => { // Initialize DB 
   try {
     const database = await openDatabase();
 
-    // REMOVED DROP TABLE - now data persists!
-    // Only CREATE IF NOT EXISTS - preserves existing data
+    // Only CREATE IF NOT EXISTS to avoid overwriting data
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS trees (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,22 +53,22 @@ export const initDatabase = async () => {
 };
 
 export const insertTree = async (species, treeHeight, latitude, longitude, dbh = null, crownHeight = null, crownRadius = null, crownCompleteness = null, tags = null) => {
-  try {
-    const database = await openDatabase();
+  try { // insert a new tree with parameters
+    const database = await openDatabase(); 
 
     // Generate UUID and current date (CSV spec)
     const treeId = generateUUID();
     const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
 
-    const localResult = await database.runAsync(
+    const localResult = await database.runAsync( // insert without synced column
       `INSERT INTO trees (
         tree_id, date, northing, easting, species, dbh,
         tree_height, crown_height, crown_radius, crown_completeness, tags
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [treeId, date, latitude, longitude, species, dbh, treeHeight, crownHeight, crownRadius, crownCompleteness, tags]
-    );
+    ) 
 
-    console.log('Tree saved locally:', treeId);
+    console.log('Tree saved locally:', treeId); // done 
     return treeId;
   } catch (error) {
     console.error('Error inserting tree:', error);
@@ -77,7 +76,7 @@ export const insertTree = async (species, treeHeight, latitude, longitude, dbh =
   }
 };
 
-export const getAllTrees = async (filters = {}) => { // get all or with filters
+export const getAllTrees = async (filters = {}) => { // retrieve all trees or with filters
   try {
     const database = await openDatabase();
     let query = 'SELECT * FROM trees WHERE 1=1';

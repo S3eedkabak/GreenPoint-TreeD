@@ -35,6 +35,7 @@ pipeline {
             steps {
                 echo 'Running tree addition tests...'
                 sh 'node src/__tests__/Add_tree_test.js'
+                sh 'node src/__tests__/CSV_import_export_test.mjs'
             }
         }
 
