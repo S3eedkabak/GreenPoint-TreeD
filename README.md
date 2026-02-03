@@ -18,7 +18,7 @@ GreenPoint is a mobile-first application for foresters and environmental profess
 - **Modern UI** - Clean, intuitive interface with custom navigation
 
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Framework:** React Native 0.81.4 with Expo 54.0.31
 - **Navigation:** React Navigation 7.1.28 (Stack Navigator)
@@ -39,7 +39,7 @@ Before you begin, ensure you have the following installed:
 - **Git** - [Download](https://git-scm.com/)
 - **Expo Go App** - Install from [App Store](https://apps.apple.com/app/expo-go/id982107779) or [Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
 
-## 📥 Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -72,7 +72,7 @@ Edit `app.json` and add your Google Maps API key:
 }
 ```
 
-## 🚀 Running the Project
+## Running the Project
 
 ### Start the Development Server
 
@@ -99,7 +99,7 @@ npm start
 
 **Note:** Use `--tunnel` flag if your device is not on the same network as your development machine.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 TreeD/
