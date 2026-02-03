@@ -76,56 +76,56 @@ export const insertTree = async (species, treeHeight, latitude, longitude, dbh =
   }
 };
 
-export const getAllTrees = async (filters = {}) => {
+export const getAllTrees = async (filters = {}) => { // get all or with filters
   try {
     const database = await openDatabase();
     let query = 'SELECT * FROM trees WHERE 1=1';
     const params = [];
 
-    if (filters.species) {
+    if (filters.species) { // case-insensitive search
       query += ' AND LOWER(species) LIKE LOWER(?)';
       params.push(`%${filters.species}%`);
     }
 
-    if (filters.minHeight) {
+    if (filters.minHeight) { // minimum tree height filter
       query += ' AND tree_height >= ?';
       params.push(filters.minHeight);
     }
 
-    if (filters.maxHeight) {
+    if (filters.maxHeight) { // maximum tree height filter
       query += ' AND tree_height <= ?';
       params.push(filters.maxHeight);
     }
 
-    if (filters.startDate) {
+    if (filters.startDate) { // date start range filter
       query += ' AND date >= ?';
       params.push(filters.startDate);
     }
 
-    if (filters.endDate) {
+    if (filters.endDate) { // date end range filter
       query += ' AND date <= ?';
       params.push(filters.endDate);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY created_at DESC'; // most recent first
 
     const trees = await database.getAllAsync(query, params);
     console.log(`📱 Fetched ${trees.length} trees from local database`);
     return trees;
   } catch (error) {
-    console.error('Error fetching trees:', error);
+    console.error('Error fetching trees:', error); // detailed logging
     throw error;
   }
 };
 
-export const exportToCSV = async () => {
+export const exportToCSV = async () => { // exports all trees to CSV format
   try {
     const trees = await getAllTrees();
 
     // CSV header matching exact specification
     let csvContent = 'Tree ID,Date,Northing,Easting,Species,DBH,Tree height,Crown height,Crown radius,Crown completeness,Tags\n';
 
-    trees.forEach(tree => {
+    trees.forEach(tree => { // append each tree as CSV row
       csvContent += `${tree.tree_id},`;
       csvContent += `${tree.date},`;
       csvContent += `${tree.northing},`;
@@ -146,7 +146,7 @@ export const exportToCSV = async () => {
   }
 };
 
-export const syncUnsyncedTrees = async () => {
+export const syncUnsyncedTrees = async () => { // ignore: SCRAPPED FROM SPRINT 1
   if (!ENABLE_CLOUD_SYNC) {
     console.log('☁️ Cloud sync is disabled');
     return { synced: 0, message: 'Cloud sync disabled' };
