@@ -1,8 +1,6 @@
 import * as SQLite from 'expo-sqlite';
-import { api } from '../services/api';
 
-let db = null;
-const ENABLE_CLOUD_SYNC = process.env.EXPO_PUBLIC_ENABLE_CLOUD_SYNC === 'true';
+let db;
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -39,8 +37,6 @@ export const initDatabase = async () => {
         crown_radius REAL,
         crown_completeness REAL,
         tags TEXT,
-        cloud_id INTEGER,
-        synced INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
@@ -48,8 +44,8 @@ export const initDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_trees_date ON trees(date);
       CREATE INDEX IF NOT EXISTS idx_trees_species ON trees(species);
     `);
-
-    console.log('✅ Local database initialized (data persists between restarts)');
+    
+    console.log('Local database initialized (data persists between restarts)');
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;
@@ -67,28 +63,12 @@ export const insertTree = async (species, treeHeight, latitude, longitude, dbh =
     const localResult = await database.runAsync(
       `INSERT INTO trees (
         tree_id, date, northing, easting, species, dbh,
-        tree_height, crown_height, crown_radius, crown_completeness, tags, synced
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [treeId, date, latitude, longitude, species, dbh, treeHeight, crownHeight, crownRadius, crownCompleteness, tags, 0]
+        tree_height, crown_height, crown_radius, crown_completeness, tags
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [treeId, date, latitude, longitude, species, dbh, treeHeight, crownHeight, crownRadius, crownCompleteness, tags]
     );
 
-    console.log('✅ Tree saved locally:', treeId);
-
-    if (ENABLE_CLOUD_SYNC) {
-      try {
-        const cloudTree = await api.createTree(species, treeHeight, latitude, longitude);
-        if (cloudTree) {
-          await database.runAsync(
-            'UPDATE trees SET cloud_id = ?, synced = 1 WHERE tree_id = ?',
-            [cloudTree.id, treeId]
-          );
-          console.log('☁️ Tree synced to cloud:', cloudTree.id);
-        }
-      } catch (cloudError) {
-        console.log('📡 No internet - data saved locally only');
-      }
-    }
-
+    console.log('Tree saved locally:', treeId);
     return treeId;
   } catch (error) {
     console.error('Error inserting tree:', error);

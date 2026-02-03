@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Alert, Animated, ActivityIndicator } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps'; // import map from react-native-maps
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
@@ -10,24 +10,25 @@ const MapScreen = ({ navigation }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [selectedCoords, setSelectedCoords] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [centerCoords, setCenterCoords] = useState(null); // State for center pinning
   const mapRef = useRef(null);
   const fabScale = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    requestLocationPermission();
+    requestLocationPermission(); // request location perm
     loadTrees();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener('focus', () => { // refresh trees when screen is focused
       loadTrees();
     });
-    return unsubscribe;
+    return unsubscribe; // cleanup
   }, [navigation]);
 
-  useEffect(() => {
-    Animated.spring(fabScale, {
+  useEffect(() => { // animate pulse user marker
+    Animated.spring(fabScale, { 
       toValue: 1,
       friction: 5,
       useNativeDriver: true,
@@ -49,16 +50,16 @@ const MapScreen = ({ navigation }) => {
     ).start();
   }, []);
 
-  const requestLocationPermission = async () => {
+  const requestLocationPermission = async () => { // request location permission and get user location
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required to use this app');
         setLoading(false);
-        return;
+        return; // exit if permission not granted
       }
 
-      const location = await Location.getCurrentPositionAsync({
+      const location = await Location.getCurrentPositionAsync({ // get user location after permission granted
         accuracy: Location.Accuracy.High,
       });
 
@@ -67,11 +68,11 @@ const MapScreen = ({ navigation }) => {
         longitude: location.coords.longitude,
       };
 
-      setUserLocation(userCoords);
+      setUserLocation(userCoords); // set user location
       setLoading(false);
 
       if (mapRef.current) {
-        mapRef.current.animateToRegion({
+        mapRef.current.animateToRegion({ // center map on user location
           ...userCoords,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
@@ -83,22 +84,36 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  const loadTrees = async () => {
+  const loadTrees = async () => { // load trees from database
     try {
       const allTrees = await getAllTrees();
+      console.log('🌳 Total trees loaded:', allTrees.length);
+      
+      // Debug each tree
+      allTrees.forEach((tree, index) => {
+        console.log(`Tree ${index + 1}:`, {
+          id: tree.tree_id,
+          species: tree.species,
+          northing: tree.northing,
+          easting: tree.easting,
+          hasCoords: !!(tree.northing && tree.easting)
+        });
+      });
+      
       setTrees(allTrees);
     } catch (error) {
+      console.error('❌ Error loading trees:', error);
       Alert.alert('Error', 'Failed to load trees from database');
     }
   };
 
-  const handleMapPress = (event) => {
+  const handleMapPress = (event) => { // handle map press to select location for new tree
     const coords = event.nativeEvent.coordinate;
     setSelectedCoords(coords);
   };
 
-  const handleAddTree = () => {
-    if (!selectedCoords) {
+  const handleAddTree = () => { // navigate to AddTree screen with selected coords
+    if (!selectedCoords) { 
       Alert.alert('No Location Selected', 'Please tap on the map to select a location first');
       return;
     }
@@ -109,11 +124,11 @@ const MapScreen = ({ navigation }) => {
     setSelectedCoords(null);
   };
 
-  const handleTreePress = (tree) => {
+  const handleTreePress = (tree) => { // navigate to TreeDetail screen with tree ID
     navigation.navigate('TreeDetail', { treeId: tree.tree_id });
   };
 
-  const centerOnUser = () => {
+  const centerOnUser = () => { // center map on user location
     if (userLocation && mapRef.current) {
       mapRef.current.animateToRegion({
         ...userLocation,
@@ -123,10 +138,48 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
+  const handleRegionChange = (region) => {
+    setCenterCoords({
+      latitude: region.latitude,
+      longitude: region.longitude,
+    });
+  };
+
+  const handleConfirmPin = () => {
+    if (centerCoords) {
+      Alert.alert(
+        'Location Confirmed',
+        `Latitude: ${centerCoords.latitude.toFixed(6)}, Longitude: ${centerCoords.longitude.toFixed(6)}`
+      );
+      setSelectedCoords(centerCoords); // Set the selected coordinates
+    }
+  };
+
+  // Add utility function to calculate distance between two coordinates
+  const calculateDistance = (coord1, coord2) => {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const R = 6371e3; // Earth radius in meters
+    const lat1 = toRad(coord1.latitude);
+    const lat2 = toRad(coord2.latitude);
+    const deltaLat = toRad(coord2.latitude - coord1.latitude);
+    const deltaLon = toRad(coord2.longitude - coord1.longitude);
+
+    const a =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) *
+      Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  // Modify the trees rendering logic
+  const filteredTrees = trees;
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#00D9A5" />
+        <ActivityIndicator size="large" color="#000" />
         <Text style={styles.loadingText}>Getting your location...</Text>
       </View>
     );
@@ -149,6 +202,7 @@ const MapScreen = ({ navigation }) => {
           longitudeDelta: 0.05,
         }}
         onPress={handleMapPress}
+        onRegionChangeComplete={handleRegionChange} // Track region changes
         showsUserLocation={false}
         showsMyLocationButton={false}
       >
@@ -169,20 +223,23 @@ const MapScreen = ({ navigation }) => {
           </>
         )}
 
-        {trees.map(tree => (
-          <Marker
-            key={tree.tree_id}
-            coordinate={{
-              latitude: tree.northing,
-              longitude: tree.easting,
-            }}
-            onPress={() => handleTreePress(tree)}
-          >
-            <View style={styles.treeMarker}>
-              <Ionicons name="leaf" size={28} color="#4CAF50" />
-            </View>
-          </Marker>
-        ))}
+        {filteredTrees.map((tree) => {
+          console.log('📍 Rendering marker for:', tree.species, tree.northing, tree.easting);
+          return (
+            <Marker
+              key={tree.tree_id}
+              coordinate={{
+                latitude: tree.northing,
+                longitude: tree.easting,
+              }}
+              onPress={() => handleTreePress(tree)}
+            >
+              <View style={styles.treeMarker}>
+                <Ionicons name="leaf" size={28} color="#4CAF50" />
+              </View>
+            </Marker>
+          );
+        })}
 
         {selectedCoords && (
           <Marker coordinate={selectedCoords}>
@@ -195,19 +252,19 @@ const MapScreen = ({ navigation }) => {
 
       <View style={styles.topBar}>
         <View style={styles.statsCard}>
-          <Ionicons name="leaf-outline" size={24} color="#00D9A5" />
+          <Ionicons name="leaf-outline" size={24} color="#000" />
           <Text style={styles.statsText}>{trees.length} Trees</Text>
         </View>
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.navigate('Settings')}
         >
-          <Ionicons name="settings-outline" size={24} color="#fff" />
+          <Ionicons name="settings-outline" size={24} color="#000" />
         </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.recenterButton} onPress={centerOnUser}>
-        <Ionicons name="locate" size={24} color="#fff" />
+        <Ionicons name="locate" size={24} color="#000" />
       </TouchableOpacity>
 
       <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
@@ -217,16 +274,26 @@ const MapScreen = ({ navigation }) => {
           disabled={!selectedCoords}
           activeOpacity={0.8}
         >
-          <Ionicons name="add" size={32} color="#fff" />
+          <Ionicons name="add" size={32} color="#000" />
         </TouchableOpacity>
       </Animated.View>
 
       {!selectedCoords && (
         <View style={styles.tooltip}>
-          <Ionicons name="hand-left-outline" size={20} color="#fff" />
+          <Ionicons name="hand-left-outline" size={20} color="#000" />
           <Text style={styles.tooltipText}>Tap on map to select location</Text>
         </View>
       )}
+
+      {/* Fixed pin at the center */}
+      <View style={styles.centerPin}>
+        <Ionicons name="location" size={40} color="#FF6B6B" />
+      </View>
+
+      {/* Confirm button */}
+      <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmPin}>
+        <Text style={styles.confirmButtonText}>Confirm Location</Text>
+      </TouchableOpacity>
 
       {/* OpenStreetMap Attribution (legally required) */}
       <View style={styles.attribution}>
@@ -239,7 +306,7 @@ const MapScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   map: {
     flex: 1,
@@ -248,12 +315,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#00D9A5',
+    color: '#000',
     fontWeight: '600',
   },
   topBar: {
@@ -268,88 +335,88 @@ const styles = StyleSheet.create({
   statsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(10, 14, 39, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: 'rgba(0, 217, 165, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.85)',
   },
   statsText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     fontWeight: '700',
     marginLeft: 10,
   },
   menuButton: {
-    backgroundColor: 'rgba(10, 14, 39, 0.85)',
+    backgroundColor: 'rgb(255, 255, 255)',
     width: 50,
     height: 50,
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 217, 165, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.85)',
   },
   recenterButton: {
     position: 'absolute',
     bottom: 120,
-    right: 20,
-    backgroundColor: '#00D9A5',
+    right: 50, // Shifted slightly more to the left
+    backgroundColor: '#ffffff',
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    shadowColor: '#00D9A5',
+    shadowColor: '#ffffff',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
   },
   fabContainer: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 110, // Move the Add Tree button higher
     alignSelf: 'center',
   },
   fab: {
-    backgroundColor: '#FF6B6B',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    backgroundColor: '#ffffff',
+    height: 70, // Increased height
+    width: 70, // Keep width the same for now
+    borderRadius: 35, // Keep circular shape
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 10,
-    shadowColor: '#FF6B6B',
+    shadowColor: '#ffffff',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.5,
     shadowRadius: 10,
   },
   fabDisabled: {
-    backgroundColor: '#555',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)', // Transparent white
     shadowColor: '#000',
   },
   tooltip: {
     position: 'absolute',
-    bottom: 120,
+    bottom: 200, // Raised higher
     left: 20,
-    backgroundColor: 'rgba(10, 14, 39, 0.9)',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 217, 165, 0.3)',
+    borderColor: '#fff',
   },
   tooltipText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 14,
     marginLeft: 8,
     fontWeight: '500',
   },
   userMarker: {
-    backgroundColor: '#00D9A5',
+    backgroundColor: '#fff',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -388,6 +455,27 @@ const styles = StyleSheet.create({
   attributionText: {
     fontSize: 10,
     color: '#000',
+  },
+  centerPin: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -20, // Half the width of the pin icon
+    marginTop: -40, // Half the height of the pin icon
+  },
+  confirmButton: {
+    position: 'absolute',
+    bottom: 45, // Raised higher by 10
+    alignSelf: 'center',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  confirmButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

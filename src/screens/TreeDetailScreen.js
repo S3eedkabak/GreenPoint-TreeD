@@ -28,6 +28,8 @@ const TreeDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const isPreFilled = (value) => value && typeof value === 'string' && value.startsWith('auto:');
+
   if (!tree) {
     return (
       <View style={styles.loadingContainer}>
@@ -35,6 +37,8 @@ const TreeDetailScreen = ({ route, navigation }) => {
       </View>
     );
   }
+
+  const unmatchedStyle = tree.unmatched ? styles.unmatchedBackground : {};
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -46,7 +50,7 @@ const TreeDetailScreen = ({ route, navigation }) => {
         <Text style={styles.subtitle}>Tree ID: {tree.tree_id}</Text>
       </View>
 
-      <View style={styles.card}>
+      <View style={[styles.card, unmatchedStyle]}>
         <Text style={styles.cardTitle}>Tree Properties</Text>
         
         <View style={styles.propertyRow}>
@@ -55,7 +59,14 @@ const TreeDetailScreen = ({ route, navigation }) => {
           </View>
           <View style={styles.propertyContent}>
             <Text style={styles.propertyLabel}>Tree Height</Text>
-            <Text style={styles.propertyValue}>{tree.tree_height} meters</Text>
+            <Text
+              style={[
+                styles.propertyValue,
+                isPreFilled(tree.tree_height) && styles.prefilledText,
+              ]}
+            >
+              {tree.tree_height} meters
+            </Text>
           </View>
         </View>
 
@@ -188,7 +199,7 @@ const TreeDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   content: {
     padding: 20,
@@ -197,10 +208,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   loadingText: {
-    color: '#fff',
+    color: '#222',
     fontSize: 16,
   },
   header: {
@@ -221,7 +232,7 @@ const styles = StyleSheet.create({
   speciesName: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#fff',
+    color: '#222',
   },
   subtitle: {
     fontSize: 14,
@@ -271,7 +282,7 @@ const styles = StyleSheet.create({
   },
   propertyValue: {
     fontSize: 16,
-    color: '#fff',
+    color: '#222',
     fontWeight: '600',
   },
   syncedText: {
@@ -296,6 +307,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginLeft: 10,
+  },
+  prefilledText: {
+    color: '#FFA500',
+    fontStyle: 'italic',
+  },
+  unmatchedBackground: {
+    backgroundColor: '#FFEBEE',
   },
 });
 

@@ -1,3 +1,5 @@
+// Main entry point of the React Native application, setting up navigation and initializing the database.
+
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -23,11 +25,11 @@ export default function App() {
         initialRouteName="Map"
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#0A0E27',
+            backgroundColor: '#fff',
             elevation: 0,
             shadowOpacity: 0,
             borderBottomWidth: 1,
-            borderBottomColor: 'rgba(0, 217, 165, 0.2)',
+            borderBottomColor: '#00D9A5',
           },
           headerTintColor: '#00D9A5',
           headerTitleStyle: {
