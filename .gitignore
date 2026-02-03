@@ -1,7 +1,8 @@
 node_modules
-.env 
-.expo
+.env
+.expo/
 backend
 docker-compose.yml
 .dockerignore
-
+/ios/
+.DS_Store
