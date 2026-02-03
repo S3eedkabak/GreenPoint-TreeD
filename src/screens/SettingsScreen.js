@@ -239,28 +239,6 @@ const SettingsScreen = ({ navigation }) => {
         />
       </View>
 
-      {/* Calibration Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Calibration</Text>
-        
-        <MenuItem
-          icon="compass-outline"
-          title="Calibrate Position"
-          subtitle="Required before adding measurements"
-          onPress={handleCalibration}
-          color="#FFA500"
-        />
-
-        <MenuItem
-          icon="add-circle-outline"
-          title="Add New Measurement"
-          subtitle="Calibrate position to enable"
-          onPress={() => Alert.alert('Action', 'Add new measurement action')}
-          color="#00D9A5"
-          disabled={!isCalibrated} // Disable until calibrated
-        />
-      </View>
-
       {/* App Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Application</Text>

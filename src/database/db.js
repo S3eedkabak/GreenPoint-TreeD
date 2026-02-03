@@ -1,6 +1,5 @@
 import * as SQLite from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
-import { api } from '../services/api';
 
 let db;
 
@@ -282,14 +281,14 @@ export const importFromCSV = async (csvContent) => {
           continue;
         }
         
-        // Insert tree
+        // Insert tree (removed synced column)
         await database.runAsync(
           `INSERT INTO trees (
             tree_id, date, northing, easting, species, dbh,
-            tree_height, crown_height, crown_radius, crown_completeness, tags, synced
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tree_height, crown_height, crown_radius, crown_completeness, tags
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [treeId, date, northing, easting, species, dbh, treeHeight, 
-           crownHeight, crownRadius, crownCompleteness, tags, 0]
+           crownHeight, crownRadius, crownCompleteness, tags]
         );
         
         importedTrees.push({ treeId, species, row: i + 1 });
@@ -314,39 +313,4 @@ export const importFromCSV = async (csvContent) => {
   }
 };
 
-export const syncUnsyncedTrees = async () => {
-  if (!ENABLE_CLOUD_SYNC) {
-    console.log('☁️ Cloud sync is disabled');
-    return { synced: 0, message: 'Cloud sync disabled' };
-  }
-
-  try {
-    const database = await openDatabase();
-    const unsyncedTrees = await database.getAllAsync(
-      'SELECT * FROM trees WHERE synced = 0'
-    );
-
-    if (unsyncedTrees.length === 0) {
-      console.log('✅ All trees are synced');
-      return { synced: 0, message: 'Nothing to sync' };
-    }
-
-    console.log(`📤 Syncing ${unsyncedTrees.length} trees to cloud...`);
-    const cloudTrees = await api.syncTrees(unsyncedTrees);
-
-    for (let i = 0; i < cloudTrees.length; i++) {
-      await database.runAsync(
-        'UPDATE trees SET cloud_id = ?, synced = 1 WHERE tree_id = ?',
-        [cloudTrees[i].id, unsyncedTrees[i].tree_id]
-      );
-    }
-
-    console.log(`✅ Synced ${cloudTrees.length} trees to cloud`);
-    return { synced: cloudTrees.length, message: 'Sync successful' };
-  } catch (error) {
-    console.error('❌ Sync failed:', error.message);
-    return { synced: 0, message: 'Sync failed - no internet', error };
-  }
-};
-
-export default { initDatabase, insertTree, getAllTrees, exportToCSV, importFromCSV, syncUnsyncedTrees };
+export default { initDatabase, insertTree, getAllTrees, exportToCSV, importFromCSV };
