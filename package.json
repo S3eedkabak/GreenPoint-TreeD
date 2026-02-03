@@ -1,0 +1,38 @@
+{
+  "name": "tree-d-mobile-app",
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test": "node src/__tests__/Add_tree_test.js",
+    "test:csv": "node src/__tests__/CSV_import_export_test.mjs"
+  },
+  "dependencies": {
+    "@react-native-community/slider": "^5.1.2",
+    "@react-navigation/native": "^7.1.28",
+    "@react-navigation/stack": "^7.6.16",
+    "expo": "^54.0.31",
+    "expo-document-picker": "~12.0.2",
+    "expo-file-system": "~19.0.21",
+    "expo-location": "~19.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-sqlite": "~16.0.10",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "^0.81.4",
+    "react-native-dropdown-picker": "^5.4.6",
+    "react-native-get-random-values": "^1.11.0",
+    "react-native-maps": "1.20.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "^0.21.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.28.0",
+    "sql.js": "^1.13.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
+    },
+    "ios": {
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to place trees on the map."
+      },
+      "bundleIdentifier": "com.anonymous.tree-d-mobile-app"
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
+  }
+}
