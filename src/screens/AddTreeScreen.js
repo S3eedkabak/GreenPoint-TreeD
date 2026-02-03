@@ -12,7 +12,9 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { insertTree } from '../database/db'; // local DB
+import { insertTree } from '../database/db';
+import DropDownPicker from 'react-native-dropdown-picker';
+import Slider from '@react-native-community/slider';
 
 const AddTreeScreen = ({ route, navigation }) => {
   const { latitude, longitude } = route.params;
@@ -55,8 +57,9 @@ const AddTreeScreen = ({ route, navigation }) => {
       return;
     }
 
-    const heightValue = parseFloat(treeHeight);
-    if (!treeHeight || isNaN(heightValue) || heightValue <= 0) {
+    // Use slider value for tree height
+    const heightValue = parseFloat(treeHeightSlider);
+    if (!heightValue || isNaN(heightValue) || heightValue <= 0) {
       Alert.alert('⚠️ Invalid Height', 'Tree height is required and must be greater than 0');
       return;
     }
@@ -108,7 +111,18 @@ const AddTreeScreen = ({ route, navigation }) => {
       setIsSaving(false);
     }
   };
-          // styling for the screen
+
+  // Replace species input with dropdown menu
+  const [speciesDropdownOpen, setSpeciesDropdownOpen] = useState(false);
+  const [speciesOptions, setSpeciesOptions] = useState([
+    { label: 'Oak', value: 'Oak' },
+    { label: 'Pine', value: 'Pine' },
+    { label: 'Eucalyptus', value: 'Eucalyptus' },
+  ]);
+
+  // Replace tree height input with slider
+  const [treeHeightSlider, setTreeHeightSlider] = useState(10);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -151,30 +165,50 @@ const AddTreeScreen = ({ route, navigation }) => {
             <Text style={styles.label}>
               <Ionicons name="flower-outline" size={16} color="#00D9A5" /> Species *
             </Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., Oak, Pine, Eucalyptus"
-                placeholderTextColor="#666"
-                value={species}
-                onChangeText={setSpecies}
-                autoCapitalize="words"
-              />
-            </View>
+            <DropDownPicker
+              open={speciesDropdownOpen}
+              value={species}
+              items={speciesOptions}
+              setOpen={setSpeciesDropdownOpen}
+              setValue={setSpecies}
+              setItems={setSpeciesOptions}
+              placeholder="Select species"
+              searchable={true}
+              searchPlaceholder="Search species..."
+              style={{
+                backgroundColor: '#ffffff', // Removed transparency
+                borderColor: '#00D9A5', // Changed border color to green
+              }}
+              dropDownContainerStyle={{
+                backgroundColor: '#ffffff', // Removed transparency
+                borderColor: '#00D9A5', // Changed dropdown container border color to green
+              }}
+              searchContainerStyle={{
+                borderBottomColor: '#00D9A5', // Changed the line splitting search and options to green
+              }}
+              searchTextInputStyle={{
+                color: '#000', // Changed search text color to white
+              }}
+              placeholderStyle={{ color: '#ffffff' }} // Matches text color
+              textStyle={{ color: '#000' }} // Matches text color
+            />
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>
               <Ionicons name="resize-outline" size={16} color="#00D9A5" /> Tree Height (m) *
             </Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 15.5"
-                placeholderTextColor="#666"
-                value={treeHeight}
-                onChangeText={setTreeHeight}
-                keyboardType="decimal-pad"
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderValue}>{treeHeightSlider.toFixed(1)} m</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={1}
+                maximumValue={50}
+                step={0.1}
+                value={treeHeightSlider}
+                onValueChange={setTreeHeightSlider}
+                minimumTrackTintColor="#00D9A5"
+                maximumTrackTintColor="#888"
               />
             </View>
           </View>
@@ -273,7 +307,7 @@ const AddTreeScreen = ({ route, navigation }) => {
             disabled={isSaving}
             activeOpacity={0.8}
           >
-            <Ionicons name="checkmark-circle" size={24} color="#fff" />
+            <Ionicons name="checkmark-circle" size={24} color="#000" />
             <Text style={styles.saveButtonText}>
               {isSaving ? 'Saving...' : 'Save Tree'}
             </Text>
@@ -295,7 +329,7 @@ const AddTreeScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#fff',
   },
   scrollContent: {
     flexGrow: 1,
@@ -312,17 +346,17 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(0, 217, 165, 0.15)',
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: 'rgba(0, 217, 165, 0.3)',
+    borderColor: '#00D9A5',
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#fff',
+    color: '#000',
     marginBottom: 8,
   },
   subtitle: {
@@ -333,12 +367,12 @@ const styles = StyleSheet.create({
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 217, 165, 0.1)',
+    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(0, 217, 165, 0.2)',
+    borderColor: '#00D9A5',
   },
   locationInfo: {
     marginLeft: 12,
@@ -353,13 +387,13 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 14,
-    color: '#fff',
+    color: '#000',
     fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#00D9A5',
+    color: '#000',
     marginBottom: 16,
     marginTop: 8,
   },
@@ -369,22 +403,22 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#fff',
+    color: '#000',
     marginBottom: 12,
   },
   inputWrapper: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#fff',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0, 217, 165, 0.2)',
+    borderColor: '#00D9A5',
   },
   inputOptional: {
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#00D9A5',
   },
   input: {
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: '#000',
   },
   hint: {
     fontSize: 12,
@@ -411,25 +445,57 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
   },
   saveButtonText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 18,
     fontWeight: '800',
     marginLeft: 10,
   },
   cancelButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
     paddingVertical: 16,
     borderRadius: 16,
     marginTop: 12,
     marginBottom: 40,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#00D9A5',
   },
   cancelButtonText: {
     color: '#888',
     fontSize: 16,
     textAlign: 'center',
     fontWeight: '600',
+  },
+  dropdown: {
+    height: 50,
+    backgroundColor: '#fff',
+    borderColor: '#00D9A5',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    color: '#000',
+    fontSize: 16,
+  },
+  dropdownContainer: {
+    borderRadius: 16,
+    borderColor: '#00D9A5',
+    borderWidth: 1,
+  },
+  sliderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sliderValue: {
+    fontSize: 16,
+    color: '#000',
+    minWidth: 50,
+    textAlign: 'right',
+  },
+  slider: {
+    flex: 1,
+    height: 40,
+    marginLeft: 10,
+    marginRight: 10,
   },
 });
 

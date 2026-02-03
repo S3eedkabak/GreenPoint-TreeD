@@ -25,11 +25,11 @@ export default function App() {
         initialRouteName="Map"
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#0A0E27',
+            backgroundColor: '#fff',
             elevation: 0,
             shadowOpacity: 0,
             borderBottomWidth: 1,
-            borderBottomColor: 'rgba(0, 217, 165, 0.2)',
+            borderBottomColor: '#00D9A5',
           },
           headerTintColor: '#00D9A5',
           headerTitleStyle: {
