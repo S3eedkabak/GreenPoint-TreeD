@@ -7,7 +7,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "node src/__tests__/simple-test.js"
+    "test": "node src/__tests__/Add_tree_test.js",
+    "test:csv": "node src/__tests__/CSV_import_export_test.mjs"
   },
   "dependencies": {
     "@react-native-community/slider": "^5.1.2",
@@ -31,6 +32,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.28.0"
+    "@babel/preset-env": "^7.28.0",
+    "sql.js": "^1.13.0"
   }
 }
