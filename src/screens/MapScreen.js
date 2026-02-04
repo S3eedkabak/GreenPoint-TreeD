@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Alert, Animated, ActivityIndicator } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps'; // import map from react-native-maps
+import { View, StyleSheet, TouchableOpacity, Text, Alert, Animated, ActivityIndicator, Platform } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT, Circle, UrlTile } from 'react-native-maps'; // import map from react-native-maps
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
@@ -206,6 +206,15 @@ const MapScreen = ({ navigation }) => {
         showsUserLocation={false}
         showsMyLocationButton={false}
       >
+        {Platform.OS === 'android' && (
+          <UrlTile
+            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maximumZ={19}
+            flipY={false}
+            zIndex={-1}
+          />
+        )}
+
         {userLocation && (
           <>
             <Circle
@@ -295,10 +304,12 @@ const MapScreen = ({ navigation }) => {
         <Text style={styles.confirmButtonText}>Confirm Location</Text>
       </TouchableOpacity>
 
-      {/* OpenStreetMap Attribution (legally required) */}
-      <View style={styles.attribution}>
-        <Text style={styles.attributionText}>© OpenStreetMap contributors</Text>
-      </View>
+      {/* OpenStreetMap Attribution (legally required for Android) */}
+      {Platform.OS === 'android' && (
+        <View style={styles.attribution}>
+          <Text style={styles.attributionText}>© OpenStreetMap contributors</Text>
+        </View>
+      )}
     </View>
   );
 };
