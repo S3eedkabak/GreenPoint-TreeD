@@ -99,6 +99,56 @@ npm start
 
 **Note:** Use `--tunnel` flag if your device is not on the same network as your development machine.
 
+## Testing
+
+The project includes comprehensive test suites for core functionality.
+
+### Available Tests
+
+#### 1. Add Tree Test
+Tests the tree insertion functionality with validation.
+
+```bash
+npm test
+```
+
+This test suite validates:
+- Tree creation with valid data
+- Required field validation (species, height, coordinates)
+- Optional field handling (DBH, crown measurements)
+- Data type validation
+- Database insertion
+
+**Test File:** `src/__tests__/Add_tree_test.js`
+
+#### 2. CSV Import/Export Test
+Tests CSV parsing, validation, and data integrity.
+
+```bash
+npm run test:csv
+```
+
+This test suite validates:
+- CSV file parsing with proper header validation
+- Data type conversions (strings to numbers)
+- Handling of quoted fields and special characters
+- Error detection and reporting
+- Duplicate tree ID detection
+- Export format consistency
+- Round-trip data integrity (export → import)
+
+**Test File:** `src/__tests__/CSV_import_export_test.mjs`
+
+### Running All Tests
+
+```bash
+# Run tree insertion tests
+npm test
+
+# Run CSV import/export tests
+npm run test:csv
+```
+
 ## Project Structure
 
 ```
@@ -117,8 +167,8 @@ TreeD/
 │   ├── database/
 │   │   └── db.js                   # SQLite database initialization & operations
 │   │
-│   ├── models/
-│   │   └── Tree.js                 # Tree data model and validation
+│   │
+│   │   
 │   │
 │   ├── screens/
 │   │   ├── MapScreen.js            # Main map interface
