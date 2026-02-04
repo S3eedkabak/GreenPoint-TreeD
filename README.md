@@ -17,6 +17,55 @@ GreenPoint is a mobile-first application for foresters and environmental profess
 - **Data Validation** - Built-in validation for tree measurements and attributes
 - **Modern UI** - Clean, intuitive interface with custom navigation
 
+## Architecture
+
+TreeD follows a **Standalone-Local-Offline Architecture** designed for field data collection without internet dependency.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Mobile Device                          │
+│                                                               │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              React Native Frontend (Offline)            │ │
+│  │                                                          │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐│ │
+│  │  │   Map    │  │ Add Tree │  │  Tree    │  │Settings ││ │
+│  │  │  Screen  │  │  Screen  │  │ Details  │  │ Screen  ││ │
+│  │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬────┘│ │
+│  │       │             │             │              │      │ │
+│  │       └─────────────┴─────────────┴──────────────┘      │ │
+│  │                          │                               │ │
+│  │                          ▼                               │ │
+│  │              ┌───────────────────────┐                  │ │
+│  │              │   Database Layer      │                  │ │
+│  │              │   (db.js API)         │                  │ │
+│  │              └──────────┬────────────┘                  │ │
+│  └─────────────────────────┼───────────────────────────────┘ │
+│                             ▼                                 │
+│         ┌─────────────────────────────────────────┐          │
+│         │      SQLite Database (Local Storage)    │          │
+│         │                                          │          │
+│         │  ┌────────────────────────────────────┐ │          │
+│         │  │  trees.db                          │ │          │
+│         │  │  • tree_id (UUID)                  │ │          │
+│         │  │  • species                         │ │          │
+│         │  │  • coordinates (northing, easting) │ │          │
+│         │  │  • measurements (height, DBH, etc) │ │          │
+│         │  │  • date, tags                      │ │          │
+│         │  └────────────────────────────────────┘ │          │
+│         └─────────────────────────────────────────┘          │
+│                             │                                 │
+│                             ▼                                 │
+│         ┌─────────────────────────────────────────┐          │
+│         │      File System (CSV Export)           │          │
+│         │      • Export data to CSV               │          │
+│         │      • Import data from CSV             │          │
+│         │      • Share files locally              │          │
+│         └─────────────────────────────────────────┘          │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+
+```
 
 ## Tech Stack
 
@@ -30,7 +79,6 @@ GreenPoint is a mobile-first application for foresters and environmental profess
 - **UI Components:** React Native Dropdown Picker, Slider, custom components
 - **Data Validation:** Custom Tree model with schema validation
 - **Version Control:** Git
-
 
 Before you begin, ensure you have the following installed:
 
