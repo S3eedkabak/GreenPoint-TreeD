@@ -92,8 +92,8 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/S3eedkabak/Green-Point-3rd-Year-Final-Project-TreeD.git
-cd Green-Point-3rd-Year-Final-Project-TreeD
+git clone https://github.com/S3eedkabak/GreenPoint-TreeD.git
+cd GreenPoint-TreeD
 ```
 
 ### 2. Install Dependencies
