@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Alert, Animated, ActivityIndicator } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps'; // import map from react-native-maps
+import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
@@ -16,19 +16,19 @@ const MapScreen = ({ navigation }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    requestLocationPermission(); // request location perm
+    requestLocationPermission();
     loadTrees();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => { // refresh trees when screen is focused
+    const unsubscribe = navigation.addListener('focus', () => {
       loadTrees();
     });
-    return unsubscribe; // cleanup
+    return unsubscribe;
   }, [navigation]);
 
-  useEffect(() => { // animate pulse user marker
-    Animated.spring(fabScale, { 
+  useEffect(() => {
+    Animated.spring(fabScale, {
       toValue: 1,
       friction: 5,
       useNativeDriver: true,
@@ -50,16 +50,16 @@ const MapScreen = ({ navigation }) => {
     ).start();
   }, []);
 
-  const requestLocationPermission = async () => { // request location permission and get user location
+  const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required to use this app');
         setLoading(false);
-        return; // exit if permission not granted
+        return;
       }
 
-      const location = await Location.getCurrentPositionAsync({ // get user location after permission granted
+      const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
@@ -68,11 +68,11 @@ const MapScreen = ({ navigation }) => {
         longitude: location.coords.longitude,
       };
 
-      setUserLocation(userCoords); // set user location
+      setUserLocation(userCoords);
       setLoading(false);
 
       if (mapRef.current) {
-        mapRef.current.animateToRegion({ // center map on user location
+        mapRef.current.animateToRegion({
           ...userCoords,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
@@ -84,7 +84,7 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  const loadTrees = async () => { // load trees from database
+  const loadTrees = async () => {
     try {
       const allTrees = await getAllTrees();
       console.log('🌳 Total trees loaded:', allTrees.length);
@@ -107,13 +107,13 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  const handleMapPress = (event) => { // handle map press to select location for new tree
+  const handleMapPress = (event) => {
     const coords = event.nativeEvent.coordinate;
     setSelectedCoords(coords);
   };
 
-  const handleAddTree = () => { // navigate to AddTree screen with selected coords
-    if (!selectedCoords) { 
+  const handleAddTree = () => {
+    if (!selectedCoords) {
       Alert.alert('No Location Selected', 'Please tap on the map to select a location first');
       return;
     }
@@ -124,11 +124,11 @@ const MapScreen = ({ navigation }) => {
     setSelectedCoords(null);
   };
 
-  const handleTreePress = (tree) => { // navigate to TreeDetail screen with tree ID
+  const handleTreePress = (tree) => {
     navigation.navigate('TreeDetail', { treeId: tree.tree_id });
   };
 
-  const centerOnUser = () => { // center map on user location
+  const centerOnUser = () => {
     if (userLocation && mapRef.current) {
       mapRef.current.animateToRegion({
         ...userLocation,
@@ -176,6 +176,21 @@ const MapScreen = ({ navigation }) => {
   // Modify the trees rendering logic
   const filteredTrees = trees;
 
+  // Find the closest tree within 10m
+  let activeTreeId = null;
+  if (userLocation && trees.length > 0) {
+    let minDist = Infinity;
+    trees.forEach(tree => {
+      if (tree.northing && tree.easting) {
+        const dist = calculateDistance(userLocation, { latitude: tree.northing, longitude: tree.easting });
+        if (dist < 10 && dist < minDist) {
+          minDist = dist;
+          activeTreeId = tree.tree_id;
+        }
+      }
+    });
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -217,27 +232,55 @@ const MapScreen = ({ navigation }) => {
             />
             <Marker coordinate={userLocation}>
               <Animated.View style={[styles.userMarker, { transform: [{ scale: pulseAnim }] }]}>
-                <Ionicons name="person" size={20} color="#fff" />
+                <Ionicons name="person" size={20} color="#000000" />
               </Animated.View>
             </Marker>
           </>
         )}
 
         {filteredTrees.map((tree) => {
-          console.log('📍 Rendering marker for:', tree.species, tree.northing, tree.easting);
+          // Color coding by species
+          let fillColor = 'rgba(0,0,0,0.3)';
+          let strokeColor = 'rgba(0,0,0,0.7)';
+          if (tree.species && tree.species.toLowerCase() === 'oak') {
+            fillColor = 'rgba(0,128,0,0.25)'; // green
+            strokeColor = 'rgba(0,128,0,0.7)';
+          } else if (tree.species && tree.species.toLowerCase() === 'pine') {
+            fillColor = 'rgba(255,0,0,0.18)'; // red
+            strokeColor = 'rgba(255,0,0,0.7)';
+          } else if (tree.species && tree.species.toLowerCase() === 'eucalyptus') {
+            fillColor = 'rgba(255,215,0,0.18)'; // yellow
+            strokeColor = 'rgba(255,215,0,0.7)';
+          }
+          // Highlight active tree
+          let highlight = false;
+          if (tree.tree_id === activeTreeId) {
+            fillColor = 'rgba(0,255,255,0.35)'; // cyan highlight
+            strokeColor = 'rgba(0,255,255,1)';
+            highlight = true;
+          }
+          // Increase size based on crown radius 
+          const baseRadius = tree.crown_radius ? Number(tree.crown_radius) : 1;
+          const radius = baseRadius * 4;
           return (
-            <Marker
-              key={tree.tree_id}
-              coordinate={{
-                latitude: tree.northing,
-                longitude: tree.easting,
-              }}
-              onPress={() => handleTreePress(tree)}
-            >
-              <View style={styles.treeMarker}>
-                <Ionicons name="leaf" size={28} color="#4CAF50" />
-              </View>
-            </Marker>
+            <React.Fragment key={tree.tree_id}>
+              <Circle
+                center={{ latitude: tree.northing, longitude: tree.easting }}
+                radius={radius}
+                fillColor={fillColor}
+                strokeColor={strokeColor}
+                strokeWidth={highlight ? 5 : 2}
+                zIndex={highlight ? 1000 : 1}
+              />
+              <Marker
+                coordinate={{ latitude: tree.northing, longitude: tree.easting }}
+                onPress={() => handleTreePress(tree)}
+                anchor={{ x: 0.5, y: 0.5 }}
+                zIndex={999}
+              >
+                <View style={{ width: 1, height: 1, backgroundColor: 'transparent' }} />
+              </Marker>
+            </React.Fragment>
           );
         })}
 
@@ -361,7 +404,7 @@ const styles = StyleSheet.create({
   recenterButton: {
     position: 'absolute',
     bottom: 120,
-    right: 50, // Shifted slightly more to the left
+    right: 50, 
     backgroundColor: '#ffffff',
     width: 56,
     height: 56,
@@ -376,14 +419,14 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    bottom: 110, // Move the Add Tree button higher
+    bottom: 110, 
     alignSelf: 'center',
   },
   fab: {
     backgroundColor: '#ffffff',
-    height: 70, // Increased height
-    width: 70, // Keep width the same for now
-    borderRadius: 35, // Keep circular shape
+    height: 70, 
+    width: 70, 
+    borderRadius: 35, 
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 10,
@@ -393,12 +436,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   fabDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)', // Transparent white
+    backgroundColor: 'rgba(255, 255, 255, 0.5)', 
     shadowColor: '#000',
   },
   tooltip: {
     position: 'absolute',
-    bottom: 200, // Raised higher
+    bottom: 200, 
     left: 20,
     backgroundColor: '#ffffff',
     paddingHorizontal: 16,
