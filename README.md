@@ -102,24 +102,6 @@ cd GreenPoint-TreeD
 npm install
 ```
 
-### 3. Configure Google Maps API (Android)
-
-Edit `app.json` and add your Google Maps API key:
-
-```json
-{
-  "expo": {
-    "android": {
-      "config": {
-        "googleMaps": {
-          "apiKey": "X"
-        }
-      }
-    }
-  }
-}
-```
-
 ## Running the Project
 
 ### Start the Development Server
