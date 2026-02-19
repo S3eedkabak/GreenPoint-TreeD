@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+    #map { height: 100%; width: 100%; background-color: #f0f0f0; }
+    .offline-indicator { 
+      position: absolute; 
+      top: 10px; 
+      left: 50%; 
+      transform: translateX(-50%);
+      background: rgba(255, 107, 107, 0.9); 
+      color: white; 
+      padding: 8px 16px; 
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1000;
+      display: none;
+    }
+    .pulse-marker {
+      background: rgba(0, 217, 165, 0.4);
+      border: 3px solid #00D9A5;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="offline-indicator" class="offline-indicator">📡 Offline - Using Cached Map</div>
+  <div id="map"></div>
+  
+  <script>
+    let map;
+    let userMarker;
+    let userCircle;
+    let selectedMarker;
+    let treeMarkers = {};
+    let isOffline = false;
+    let currentTileLayer;
+    let localTileBase = null; // set by React Native when available
+
+    // Custom tile layer that checks local cache first, then falls back to network
+    const CachedTileLayer = L.TileLayer.extend({
+      createTile: function(coords, done) {
+        const tile = document.createElement('img');
+        tile.setAttribute('role', 'presentation');
+
+        const localPath = localTileBase
+          ? `${localTileBase}${coords.z}/${coords.x}/${coords.y}.png`
+          : null;
+
+        const networkUrl = `https://a.tile.openstreetmap.fr/hot/${coords.z}/${coords.x}/${coords.y}.png`;
+
+        const loadNetwork = () => {
+          tile.onload = () => {
+            if (isOffline) {
+              isOffline = false;
+              document.getElementById('offline-indicator').style.display = 'none';
+              sendMessage({ type: 'connectivity', isOffline: false });
+            }
+            done(null, tile);
+          };
+          tile.onerror = () => {
+            if (!isOffline) {
+              isOffline = true;
+              document.getElementById('offline-indicator').style.display = 'block';
+              sendMessage({ type: 'connectivity', isOffline: true });
+            }
+            done('Tile load error', tile);
+          };
+          tile.src = networkUrl;
+        };
+
+        if (localPath) {
+          // Try local first
+          const testImg = new Image();
+          testImg.onload = () => {
+            tile.src = localPath;
+            done(null, tile);
+          };
+          testImg.onerror = () => {
+            // Not cached locally, fall back to network
+            loadNetwork();
+          };
+          testImg.src = localPath;
+        } else {
+          loadNetwork();
+        }
+
+        return tile;
+      }
+    });
+
+    // Initialize map
+    map = L.map('map', {
+      center: [31.2357, 34.7818],
+      zoom: 15,
+      zoomControl: false
+    });
+
+    currentTileLayer = new CachedTileLayer('', {
+      attribution: '© OpenStreetMap contributors | Tiles © HOT',
+      maxZoom: 19,
+    }).addTo(map);
+
+    // User location marker
+    function setUserLocation(lat, lng) {
+      if (!userMarker) {
+        const pulseIcon = L.divIcon({
+          className: 'pulse-marker',
+          iconSize: [40, 40]
+        });
+        
+        userMarker = L.marker([lat, lng], { 
+          icon: pulseIcon,
+          zIndexOffset: 1000 
+        }).addTo(map);
+        
+        userCircle = L.circle([lat, lng], {
+          radius: 50,
+          color: 'rgba(0, 217, 165, 0.5)',
+          fillColor: 'rgba(0, 217, 165, 0.2)',
+          fillOpacity: 0.4
+        }).addTo(map);
+        
+        map.setView([lat, lng], 15);
+      } else {
+        userMarker.setLatLng([lat, lng]);
+        userCircle.setLatLng([lat, lng]);
+      }
+    }
+    
+    // Add tree markers
+    function addTreeMarkers(trees) {
+      Object.values(treeMarkers).forEach(marker => map.removeLayer(marker));
+      treeMarkers = {};
+      
+      trees.forEach(tree => {
+        const treeIcon = L.divIcon({
+          className: 'tree-marker',
+          html: '<div style="background: white; width: 44px; height: 44px; border-radius: 22px; border: 3px solid #4CAF50; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);">🌳</div>',
+          iconSize: [44, 44]
+        });
+        
+        const marker = L.marker([tree.northing, tree.easting], { 
+          icon: treeIcon 
+        }).addTo(map);
+        
+        marker.on('click', () => {
+          sendMessage({ type: 'treePress', treeId: tree.tree_id });
+        });
+        
+        treeMarkers[tree.tree_id] = marker;
+      });
+    }
+    
+    // Handle map clicks
+    map.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      
+      if (selectedMarker) {
+        map.removeLayer(selectedMarker);
+      }
+      
+      const selectedIcon = L.divIcon({
+        className: 'selected-marker',
+        html: '<div style="color: #FF6B6B; font-size: 40px;">📍</div>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 40]
+      });
+      
+      selectedMarker = L.marker([lat, lng], { icon: selectedIcon }).addTo(map);
+      
+      sendMessage({ 
+        type: 'mapPress', 
+        latitude: lat, 
+        longitude: lng 
+      });
+    });
+    
+    function centerOnLocation(lat, lng) {
+      map.setView([lat, lng], 15, { animate: true });
+    }
+    
+    function clearSelectedMarker() {
+      if (selectedMarker) {
+        map.removeLayer(selectedMarker);
+        selectedMarker = null;
+      }
+    }
+    
+    function sendMessage(data) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(data));
+      }
+    }
+    
+    // Handle messages from React Native
+    // Both listeners: window for iOS, document for Android
+    const handleMessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        switch(data.type) {
+          case 'setUserLocation':
+            setUserLocation(data.latitude, data.longitude);
+            break;
+          case 'addTreeMarkers':
+            addTreeMarkers(data.trees);
+            break;
+          case 'centerOnLocation':
+            centerOnLocation(data.latitude, data.longitude);
+            break;
+          case 'clearSelectedMarker':
+            clearSelectedMarker();
+            break;
+          case 'setLocalTileBase':
+            // React Native tells us where cached tiles are stored
+            localTileBase = data.path;
+            // Refresh map tiles
+            map.eachLayer(layer => {
+              if (layer instanceof L.TileLayer) {
+                layer.redraw();
+              }
+            });
+            break;
+          case 'setOfflineMode':
+            isOffline = data.isOffline;
+            document.getElementById('offline-indicator').style.display = data.isOffline ? 'block' : 'none';
+            break;
+        }
+      } catch (error) {
+        console.error('Error handling message:', error);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    document.addEventListener('message', handleMessage);
+    
+    sendMessage({ type: 'mapReady' });
+  </script>
+</body>
+</html>
