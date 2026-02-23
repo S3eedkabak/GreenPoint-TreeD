@@ -22,16 +22,16 @@
       display: none;
     }
     .pulse-marker {
-      background: rgba(0, 217, 165, 0.4);
-      border: 3px solid #00D9A5;
+      background: rgba(0, 217, 165, 0.6);
+      border: 2px solid #00D9A5;
       border-radius: 50%;
-      width: 40px;
-      height: 40px;
+      width: 20px;
+      height: 20px;
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
       0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.3); opacity: 0.7; }
+      50% { transform: scale(1.4); opacity: 0.6; }
       100% { transform: scale(1); opacity: 1; }
     }
   </style>
@@ -42,15 +42,15 @@
   
   <script>
     let map;
-    let userMarker;
-    let userCircle;
+    let userMarker = null;
+    let userCircle = null;
     let selectedMarker;
     let treeMarkers = {};
     let isOffline = false;
     let currentTileLayer;
-    let localTileBase = null; // set by React Native when available
+    let localTileBase = null;
+    let mapCenteredOnUser = false;
 
-    // Custom tile layer that checks local cache first, then falls back to network
     const CachedTileLayer = L.TileLayer.extend({
       createTile: function(coords, done) {
         const tile = document.createElement('img');
@@ -83,14 +83,12 @@
         };
 
         if (localPath) {
-          // Try local first
           const testImg = new Image();
           testImg.onload = () => {
             tile.src = localPath;
             done(null, tile);
           };
           testImg.onerror = () => {
-            // Not cached locally, fall back to network
             loadNetwork();
           };
           testImg.src = localPath;
@@ -102,7 +100,6 @@
       }
     });
 
-    // Initialize map
     map = L.map('map', {
       center: [31.2357, 34.7818],
       zoom: 15,
@@ -114,34 +111,43 @@
       maxZoom: 19,
     }).addTo(map);
 
-    // User location marker
+    // User location marker — always remove and recreate to avoid ghost markers
     function setUserLocation(lat, lng) {
-      if (!userMarker) {
-        const pulseIcon = L.divIcon({
-          className: 'pulse-marker',
-          iconSize: [40, 40]
-        });
-        
-        userMarker = L.marker([lat, lng], { 
-          icon: pulseIcon,
-          zIndexOffset: 1000 
-        }).addTo(map);
-        
-        userCircle = L.circle([lat, lng], {
-          radius: 50,
-          color: 'rgba(0, 217, 165, 0.5)',
-          fillColor: 'rgba(0, 217, 165, 0.2)',
-          fillOpacity: 0.4
-        }).addTo(map);
-        
+      if (userMarker) {
+        map.removeLayer(userMarker);
+        userMarker = null;
+      }
+      if (userCircle) {
+        map.removeLayer(userCircle);
+        userCircle = null;
+      }
+
+      const pulseIcon = L.divIcon({
+        className: 'pulse-marker',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+
+      userMarker = L.marker([lat, lng], {
+        icon: pulseIcon,
+        zIndexOffset: 1000
+      }).addTo(map);
+
+      userCircle = L.circle([lat, lng], {
+        radius: 20,
+        color: '#00D9A5',
+        fillColor: '#00D9A5',
+        fillOpacity: 0.15,
+        weight: 2
+      }).addTo(map);
+
+      // Only center map on first location fix
+      if (!mapCenteredOnUser) {
         map.setView([lat, lng], 15);
-      } else {
-        userMarker.setLatLng([lat, lng]);
-        userCircle.setLatLng([lat, lng]);
+        mapCenteredOnUser = true;
       }
     }
     
-    // Add tree markers
     function addTreeMarkers(trees) {
       Object.values(treeMarkers).forEach(marker => map.removeLayer(marker));
       treeMarkers = {};
@@ -165,7 +171,6 @@
       });
     }
     
-    // Handle map clicks
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
       
@@ -206,8 +211,6 @@
       }
     }
     
-    // Handle messages from React Native
-    // Both listeners: window for iOS, document for Android
     const handleMessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -226,9 +229,7 @@
             clearSelectedMarker();
             break;
           case 'setLocalTileBase':
-            // React Native tells us where cached tiles are stored
             localTileBase = data.path;
-            // Refresh map tiles
             map.eachLayer(layer => {
               if (layer instanceof L.TileLayer) {
                 layer.redraw();

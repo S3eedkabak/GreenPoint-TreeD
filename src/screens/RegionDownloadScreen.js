@@ -32,6 +32,31 @@ const countTiles = (bbox, minZoom, maxZoom) => {
   return total;
 };
 
+// ─── Download modes ───────────────────────────────────────────────────────────
+
+const MODES = {
+  navigation: {
+    id: 'navigation',
+    label: 'Navigation',
+    icon: 'navigate-outline',
+    description: 'Large areas for getting to the site. Good for regions, states, districts.',
+    minZoom: 10,
+    maxZoom: 13,
+    tileLimit: 50000,
+    color: '#00D9A5',
+  },
+  fieldwork: {
+    id: 'fieldwork',
+    label: 'Field Work',
+    icon: 'leaf-outline',
+    description: 'Small areas with high detail for precise tree marking on the ground.',
+    minZoom: 14,
+    maxZoom: 18,
+    tileLimit: 20000,
+    color: '#4CAF50',
+  },
+};
+
 // ─── Nominatim geocoding ─────────────────────────────────────────────────────
 
 const geocodeRegion = async (query) => {
@@ -70,13 +95,13 @@ const saveRegions = async (regions) => {
   await FileSystem.writeAsStringAsync(REGIONS_FILE(), JSON.stringify(regions));
 };
 
-// ─── Cache checker ────────────────────────────────────────────────────────────
+// ─── Cache checker (uses region's own zoom range) ─────────────────────────────
 
-const checkCachedTiles = async (region, onProgress) => {
-  const { bbox } = region;
+const checkCachedTiles = async (region) => {
+  const { bbox, minZoom, maxZoom } = region;
   let cached = 0;
   let total = 0;
-  for (let z = MIN_ZOOM; z <= MAX_ZOOM; z++) {
+  for (let z = minZoom; z <= maxZoom; z++) {
     const xMin = lon2tile(bbox.west, z);
     const xMax = lon2tile(bbox.east, z);
     const yMin = lat2tile(bbox.north, z);
@@ -86,23 +111,18 @@ const checkCachedTiles = async (region, onProgress) => {
         total++;
         const info = await FileSystem.getInfoAsync(tilePath(z, x, y));
         if (info.exists) cached++;
-        if (onProgress) onProgress(cached, total);
       }
     }
   }
   return { cached, total };
 };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const MIN_ZOOM = 10;
-const MAX_ZOOM = 14;
-const TILE_LIMIT = 15000;
 const TILE_URL = 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const RegionDownloadScreen = ({ navigation }) => {
+  const [selectedMode, setSelectedMode] = useState('navigation');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -115,16 +135,18 @@ const RegionDownloadScreen = ({ navigation }) => {
   const [checkingRegion, setCheckingRegion] = useState(null);
   const cancelRef = useRef(false);
 
+  const mode = MODES[selectedMode];
+
   useEffect(() => {
     loadRegions().then(setDownloadedRegions);
   }, []);
 
   useEffect(() => {
     if (selectedRegion) {
-      const count = countTiles(selectedRegion.bbox, MIN_ZOOM, MAX_ZOOM);
+      const count = countTiles(selectedRegion.bbox, mode.minZoom, mode.maxZoom);
       setTileCount(count);
     }
-  }, [selectedRegion]);
+  }, [selectedRegion, selectedMode]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -152,13 +174,18 @@ const RegionDownloadScreen = ({ navigation }) => {
 
   const handleDownload = async () => {
     if (!selectedRegion) return;
-    if (tileCount > TILE_LIMIT) {
-      Alert.alert('Region Too Large', `This region requires ~${tileCount} tiles (~${estimateMB(tileCount)} MB). Try searching a specific forest or city instead.`);
+    if (tileCount > mode.tileLimit) {
+      Alert.alert(
+        'Region Too Large',
+        selectedMode === 'navigation'
+          ? `${tileCount.toLocaleString()} tiles is too large for Navigation mode. Try a smaller region.`
+          : `${tileCount.toLocaleString()} tiles is too large for Field Work mode. Field Work is designed for small areas like a single forest block. Try zooming into a specific location.`
+      );
       return;
     }
     Alert.alert(
       'Download Region',
-      `Download "${selectedRegion.name.split(',')[0]}"?\n\nEstimated: ${tileCount} tiles (~${estimateMB(tileCount)} MB)`,
+      `Download "${selectedRegion.name.split(',')[0]}" (${mode.label})?\n\nZoom: ${mode.minZoom}–${mode.maxZoom}\nTiles: ~${tileCount.toLocaleString()}\nSize: ~${estimateMB(tileCount)} MB`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Download', onPress: startDownload },
@@ -171,6 +198,7 @@ const RegionDownloadScreen = ({ navigation }) => {
     setProgress(0);
     cancelRef.current = false;
     const { bbox } = selectedRegion;
+    const { minZoom, maxZoom } = mode;
     let downloaded = 0;
     let failed = 0;
     const total = tileCount;
@@ -178,7 +206,7 @@ const RegionDownloadScreen = ({ navigation }) => {
     try {
       await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true });
 
-      for (let z = MIN_ZOOM; z <= MAX_ZOOM; z++) {
+      for (let z = minZoom; z <= maxZoom; z++) {
         if (cancelRef.current) break;
         const xMin = lon2tile(bbox.west, z);
         const xMax = lon2tile(bbox.east, z);
@@ -214,17 +242,21 @@ const RegionDownloadScreen = ({ navigation }) => {
           name: selectedRegion.name.split(',')[0],
           fullName: selectedRegion.name,
           bbox: selectedRegion.bbox,
+          minZoom,
+          maxZoom,
+          mode: mode.id,
+          modeLabel: mode.label,
           tileCount: downloaded,
           downloadedAt: new Date().toISOString(),
           sizeMB: estimateMB(downloaded),
         };
         const existing = await loadRegions();
-        const updated = [...existing.filter(r => r.name !== regionData.name), regionData];
+        const updated = [...existing.filter(r => !(r.name === regionData.name && r.mode === regionData.mode)), regionData];
         await saveRegions(updated);
         setDownloadedRegions(updated);
         Alert.alert(
           'Download Complete',
-          `${regionData.name} downloaded!\n${downloaded} tiles, ~${regionData.sizeMB} MB${failed > 0 ? `\n(${failed} tiles failed)` : ''}`,
+          `${regionData.name} (${mode.label}) downloaded!\n${downloaded.toLocaleString()} tiles, ~${regionData.sizeMB} MB${failed > 0 ? `\n(${failed} tiles failed)` : ''}`,
           [{ text: 'OK' }]
         );
       }
@@ -246,20 +278,12 @@ const RegionDownloadScreen = ({ navigation }) => {
   const handleCheckCache = async (region) => {
     setCheckingRegion(region.id);
     try {
-      let checked = 0;
-      let cachedSoFar = 0;
-      const total = region.tileCount || countTiles(region.bbox, MIN_ZOOM, MAX_ZOOM);
-
-      const { cached } = await checkCachedTiles(region, (c, t) => {
-        cachedSoFar = c;
-        checked = t;
-      });
-
-      const pct = Math.round((cached / total) * 100);
+      const { cached, total } = await checkCachedTiles(region);
+      const pct = total > 0 ? Math.round((cached / total) * 100) : 0;
       let status = '';
       if (cached === 0) status = '❌ No tiles found — try re-downloading';
       else if (cached >= total * 0.95) status = '✅ Fully cached and ready for offline use';
-      else status = `⚠️ Partially cached — ${total - cached} tiles missing`;
+      else status = `⚠️ Partially cached — ${(total - cached).toLocaleString()} tiles missing`;
 
       Alert.alert(
         `${region.name} — Cache Status`,
@@ -275,7 +299,7 @@ const RegionDownloadScreen = ({ navigation }) => {
   const handleDeleteRegion = (region) => {
     Alert.alert(
       'Delete Region',
-      `Delete cached tiles for "${region.name}"?`,
+      `Delete cached tiles for "${region.name}" (${region.modeLabel || 'Navigation'})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -283,8 +307,8 @@ const RegionDownloadScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { bbox } = region;
-              for (let z = MIN_ZOOM; z <= MAX_ZOOM; z++) {
+              const { bbox, minZoom, maxZoom } = region;
+              for (let z = minZoom; z <= maxZoom; z++) {
                 const xMin = lon2tile(bbox.west, z);
                 const xMax = lon2tile(bbox.east, z);
                 const yMin = lat2tile(bbox.north, z);
@@ -312,23 +336,44 @@ const RegionDownloadScreen = ({ navigation }) => {
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
 
+      {/* Mode selector */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Download Mode</Text>
+        <View style={styles.modeRow}>
+          {Object.values(MODES).map(m => (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.modeCard, selectedMode === m.id && { borderColor: m.color, backgroundColor: m.color + '10' }]}
+              onPress={() => { setSelectedMode(m.id); setSelectedRegion(null); setResults([]); setQuery(''); }}
+            >
+              <Ionicons name={m.icon} size={24} color={selectedMode === m.id ? m.color : '#999'} />
+              <Text style={[styles.modeLabel, selectedMode === m.id && { color: m.color }]}>{m.label}</Text>
+              <Text style={styles.modeZoom}>Zoom {m.minZoom}–{m.maxZoom}</Text>
+              <Text style={styles.modeDesc}>{m.description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       {/* Search */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Search Region</Text>
         <Text style={styles.sectionSubtitle}>
-          Search for a city or forest area to download its map tiles for offline use.
+          {selectedMode === 'navigation'
+            ? 'Search for a region, state, or district to download for navigation.'
+            : 'Search for a specific forest, village, or small area for precise field work.'}
         </Text>
         <View style={styles.searchRow}>
           <TextInput
             style={styles.input}
-            placeholder="e.g. Black Forest, Cape Town, Berlin..."
+            placeholder={selectedMode === 'navigation' ? 'e.g. Saxony, Bavaria, Leipzig...' : 'e.g. Tharandter Wald, Grunewald...'}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
             placeholderTextColor="#999"
           />
-          <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} disabled={searching}>
+          <TouchableOpacity style={[styles.searchBtn, { backgroundColor: mode.color }]} onPress={handleSearch} disabled={searching}>
             {searching
               ? <ActivityIndicator size="small" color="#fff" />
               : <Ionicons name="search" size={20} color="#fff" />}
@@ -339,7 +384,7 @@ const RegionDownloadScreen = ({ navigation }) => {
           <View style={styles.resultsList}>
             {results.map((item, index) => (
               <TouchableOpacity key={index} style={styles.resultItem} onPress={() => handleSelectResult(item)}>
-                <Ionicons name="location-outline" size={18} color="#00D9A5" />
+                <Ionicons name="location-outline" size={18} color={mode.color} />
                 <Text style={styles.resultText} numberOfLines={2}>{item.name}</Text>
               </TouchableOpacity>
             ))}
@@ -352,12 +397,16 @@ const RegionDownloadScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Selected Region</Text>
           <View style={styles.regionCard}>
+            <View style={[styles.modeBadge, { backgroundColor: mode.color + '20' }]}>
+              <Ionicons name={mode.icon} size={14} color={mode.color} />
+              <Text style={[styles.modeBadgeText, { color: mode.color }]}>{mode.label}</Text>
+            </View>
             <Text style={styles.regionName}>{selectedRegion.name.split(',')[0]}</Text>
             <Text style={styles.regionMeta} numberOfLines={2}>{selectedRegion.name}</Text>
             <View style={styles.regionStats}>
               <View style={styles.stat}>
                 <Ionicons name="layers-outline" size={16} color="#666" />
-                <Text style={styles.statText}>Zoom {MIN_ZOOM}–{MAX_ZOOM}</Text>
+                <Text style={styles.statText}>Zoom {mode.minZoom}–{mode.maxZoom}</Text>
               </View>
               <View style={styles.stat}>
                 <Ionicons name="grid-outline" size={16} color="#666" />
@@ -368,16 +417,20 @@ const RegionDownloadScreen = ({ navigation }) => {
                 <Text style={styles.statText}>~{estimateMB(tileCount)} MB</Text>
               </View>
             </View>
-            {tileCount > TILE_LIMIT && (
+            {tileCount > mode.tileLimit && (
               <View style={styles.warningBox}>
                 <Ionicons name="warning-outline" size={16} color="#FF6B6B" />
-                <Text style={styles.warningText}>Region too large. Try a city or smaller area.</Text>
+                <Text style={styles.warningText}>
+                  {selectedMode === 'fieldwork'
+                    ? 'Area too large for Field Work. Try a smaller forest block.'
+                    : 'Region too large. Try a smaller region.'}
+                </Text>
               </View>
             )}
             <TouchableOpacity
-              style={[styles.downloadBtn, tileCount > TILE_LIMIT && styles.downloadBtnDisabled]}
+              style={[styles.downloadBtn, { backgroundColor: tileCount > mode.tileLimit ? '#ccc' : mode.color }]}
               onPress={handleDownload}
-              disabled={tileCount > TILE_LIMIT}
+              disabled={tileCount > mode.tileLimit}
             >
               <Ionicons name="cloud-download-outline" size={20} color="#fff" />
               <Text style={styles.downloadBtnText}>Download for Offline Use</Text>
@@ -392,9 +445,9 @@ const RegionDownloadScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Downloading...</Text>
           <View style={styles.progressCard}>
             <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+              <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: mode.color }]} />
             </View>
-            <Text style={styles.progressPct}>{progress}%</Text>
+            <Text style={[styles.progressPct, { color: mode.color }]}>{progress}%</Text>
             <Text style={styles.progressDetail}>{progressText}</Text>
             <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -413,37 +466,42 @@ const RegionDownloadScreen = ({ navigation }) => {
             <Text style={styles.emptySubtext}>Search for a region above to download it</Text>
           </View>
         ) : (
-          downloadedRegions.map((region) => (
-            <View key={region.id} style={styles.downloadedCard}>
-              <View style={styles.downloadedInfo}>
-                <Text style={styles.downloadedName}>{region.name}</Text>
-                <Text style={styles.downloadedMeta}>
-                  {region.tileCount?.toLocaleString()} tiles · {region.sizeMB} MB
-                </Text>
-                <Text style={styles.downloadedDate}>
-                  {new Date(region.downloadedAt).toLocaleDateString()}
-                </Text>
+          downloadedRegions.map((region) => {
+            const regionMode = MODES[region.mode] || MODES.navigation;
+            return (
+              <View key={region.id} style={styles.downloadedCard}>
+                <View style={styles.downloadedInfo}>
+                  <View style={styles.downloadedHeader}>
+                    <Text style={styles.downloadedName}>{region.name}</Text>
+                    <View style={[styles.modeBadgeSmall, { backgroundColor: regionMode.color + '20' }]}>
+                      <Text style={[styles.modeBadgeSmallText, { color: regionMode.color }]}>{region.modeLabel || 'Navigation'}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.downloadedMeta}>
+                    Zoom {region.minZoom}–{region.maxZoom} · {region.tileCount?.toLocaleString()} tiles · {region.sizeMB} MB
+                  </Text>
+                  <Text style={styles.downloadedDate}>
+                    {new Date(region.downloadedAt).toLocaleDateString()}
+                  </Text>
+                </View>
+                <View style={styles.downloadedActions}>
+                  <TouchableOpacity
+                    style={styles.checkBtn}
+                    onPress={() => handleCheckCache(region)}
+                    disabled={checkingRegion === region.id}
+                  >
+                    {checkingRegion === region.id
+                      ? <ActivityIndicator size="small" color="#00D9A5" />
+                      : <Ionicons name="checkmark-circle-outline" size={22} color="#00D9A5" />
+                    }
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteRegion(region)}>
+                    <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.downloadedActions}>
-                <TouchableOpacity
-                  style={styles.checkBtn}
-                  onPress={() => handleCheckCache(region)}
-                  disabled={checkingRegion === region.id}
-                >
-                  {checkingRegion === region.id
-                    ? <ActivityIndicator size="small" color="#00D9A5" />
-                    : <Ionicons name="checkmark-circle-outline" size={22} color="#00D9A5" />
-                  }
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDeleteRegion(region)}
-                >
-                  <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </View>
 
@@ -457,9 +515,18 @@ const styles = StyleSheet.create({
   section: { marginTop: 20, marginHorizontal: 16 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#000', marginBottom: 4 },
   sectionSubtitle: { fontSize: 13, color: '#666', marginBottom: 12, lineHeight: 18 },
+  modeRow: { flexDirection: 'row', gap: 12 },
+  modeCard: { flex: 1, backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 2, borderColor: '#eee' },
+  modeLabel: { fontSize: 15, fontWeight: '700', color: '#999', marginTop: 8, marginBottom: 2 },
+  modeZoom: { fontSize: 12, color: '#999', marginBottom: 6 },
+  modeDesc: { fontSize: 11, color: '#bbb', lineHeight: 15 },
+  modeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: 'flex-start', marginBottom: 8 },
+  modeBadgeText: { fontSize: 12, fontWeight: '600' },
+  modeBadgeSmall: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  modeBadgeSmallText: { fontSize: 11, fontWeight: '600' },
   searchRow: { flexDirection: 'row', gap: 10 },
   input: { flex: 1, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: '#eee', color: '#000' },
-  searchBtn: { backgroundColor: '#00D9A5', borderRadius: 12, width: 48, justifyContent: 'center', alignItems: 'center' },
+  searchBtn: { borderRadius: 12, width: 48, justifyContent: 'center', alignItems: 'center' },
   resultsList: { backgroundColor: '#fff', borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: '#eee', overflow: 'hidden' },
   resultItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', gap: 10 },
   resultText: { flex: 1, fontSize: 14, color: '#000' },
@@ -471,13 +538,12 @@ const styles = StyleSheet.create({
   statText: { fontSize: 13, color: '#666' },
   warningBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff5f5', padding: 10, borderRadius: 8, marginBottom: 12, gap: 8 },
   warningText: { flex: 1, fontSize: 13, color: '#FF6B6B' },
-  downloadBtn: { backgroundColor: '#00D9A5', borderRadius: 12, paddingVertical: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  downloadBtnDisabled: { backgroundColor: '#ccc' },
+  downloadBtn: { borderRadius: 12, paddingVertical: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   downloadBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   progressCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#eee', alignItems: 'center' },
   progressBarBg: { width: '100%', height: 12, backgroundColor: '#f0f0f0', borderRadius: 6, overflow: 'hidden', marginBottom: 10 },
-  progressBarFill: { height: '100%', backgroundColor: '#00D9A5', borderRadius: 6 },
-  progressPct: { fontSize: 28, fontWeight: '800', color: '#00D9A5' },
+  progressBarFill: { height: '100%', borderRadius: 6 },
+  progressPct: { fontSize: 28, fontWeight: '800' },
   progressDetail: { fontSize: 13, color: '#666', marginTop: 4, marginBottom: 16 },
   cancelBtn: { borderWidth: 1, borderColor: '#FF6B6B', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
   cancelBtnText: { color: '#FF6B6B', fontWeight: '600', fontSize: 15 },
@@ -486,8 +552,9 @@ const styles = StyleSheet.create({
   emptySubtext: { fontSize: 13, color: '#bbb', marginTop: 4, textAlign: 'center' },
   downloadedCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
   downloadedInfo: { flex: 1 },
+  downloadedHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   downloadedName: { fontSize: 16, fontWeight: '700', color: '#000' },
-  downloadedMeta: { fontSize: 13, color: '#666', marginTop: 2 },
+  downloadedMeta: { fontSize: 12, color: '#666', marginTop: 2 },
   downloadedDate: { fontSize: 11, color: '#bbb', marginTop: 2 },
   downloadedActions: { flexDirection: 'row', gap: 8 },
   checkBtn: { padding: 8 },
