@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
 
 const TILE_BASE = FileSystem.documentDirectory + 'tiles/';
+const LOCATION_UPDATE_THRESHOLD = 0.00005; // ~5 metres
 
 const MapScreen = ({ navigation }) => {
   const [trees, setTrees] = useState([]);
@@ -25,7 +26,7 @@ const MapScreen = ({ navigation }) => {
   const [isOffline, setIsOffline] = useState(false);
   const webViewRef = useRef(null);
   const fabScale = useRef(new Animated.Value(0)).current;
-  const locationIntervalRef = useRef(null);
+  const locationWatchRef = useRef(null);
 
   const mapSource = require('../../assets/leaflet-map.html');
 
@@ -40,8 +41,8 @@ const MapScreen = ({ navigation }) => {
     }).start();
 
     return () => {
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
+      if (locationWatchRef.current) {
+        locationWatchRef.current.remove();
       }
     };
   }, []);
@@ -65,20 +66,6 @@ const MapScreen = ({ navigation }) => {
     sendToMap('addTreeMarkers', { trees });
   }, [mapReady, userLocation, trees]);
 
-  const fetchLocation = async () => {
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-    } catch (error) {
-      // silently fail on poll — initial error handled separately
-    }
-  };
-
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -88,12 +75,40 @@ const MapScreen = ({ navigation }) => {
         return;
       }
 
-      // Get initial position
-      await fetchLocation();
+      // Get initial position fast
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
       setLoading(false);
 
-      // Poll every 2 seconds — works on both simulator and real device
-      locationIntervalRef.current = setInterval(fetchLocation, 2000);
+      // Production: watchPositionAsync fires only on real movement
+      // distanceInterval: 5 = only update after moving 5 metres
+      // This is battery efficient and causes no unnecessary re-renders
+      locationWatchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: 5,   // metres moved before update
+          timeInterval: 5000,    // fallback: update every 5s even if not moved
+        },
+        (newLocation) => {
+          const { latitude, longitude } = newLocation.coords;
+          setUserLocation(prev => {
+            // Extra guard: skip update if coords haven't meaningfully changed
+            if (
+              prev &&
+              Math.abs(prev.latitude - latitude) < LOCATION_UPDATE_THRESHOLD &&
+              Math.abs(prev.longitude - longitude) < LOCATION_UPDATE_THRESHOLD
+            ) {
+              return prev; // same reference = no re-render
+            }
+            return { latitude, longitude };
+          });
+        }
+      );
     } catch (error) {
       console.error('Location error:', error);
       setLoading(false);
