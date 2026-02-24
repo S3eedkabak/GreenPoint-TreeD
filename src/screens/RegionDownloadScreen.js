@@ -14,13 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 
 // ─── Tile math helpers ───────────────────────────────────────────────────────
 
-const lon2tile = (lon, zoom) => Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+const lon2tile = (lon, zoom) => Math.floor((lon + 180) / 360 * Math.pow(2, zoom)); // converts longitude to tile X at a given zoom level
 const lat2tile = (lat, zoom) => Math.floor(
-  (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI)
+  (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) // converts latitude to tile Y at a given zoom level
   / 2 * Math.pow(2, zoom)
 );
 
-const countTiles = (bbox, minZoom, maxZoom) => {
+const countTiles = (bbox, minZoom, maxZoom) => { // counts the total number of tiles in a bounding box across a range of zoom levels
   let total = 0;
   for (let z = minZoom; z <= maxZoom; z++) {
     const xMin = lon2tile(bbox.west, z);
@@ -59,7 +59,7 @@ const MODES = {
 
 // ─── Nominatim geocoding ─────────────────────────────────────────────────────
 
-const geocodeRegion = async (query) => {
+const geocodeRegion = async (query) => { // uses OpenStreetMap's Nominatim API to search for a place and return its bounding box
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`;
   const res = await fetch(url, { headers: { 'User-Agent': 'TreeDApp/1.0' } });
   const data = await res.json();
@@ -76,14 +76,14 @@ const geocodeRegion = async (query) => {
 
 // ─── Storage helpers ─────────────────────────────────────────────────────────
 
-const REGIONS_FILE = () => FileSystem.documentDirectory + 'downloaded_regions.json';
-const TILE_BASE = () => FileSystem.documentDirectory + 'tiles/';
-const tilePath = (z, x, y) => `${TILE_BASE()}${z}/${x}/${y}.png`;
+const REGIONS_FILE = () => FileSystem.documentDirectory + 'downloaded_regions.json'; // file to store metadata about downloaded regions
+const TILE_BASE = () => FileSystem.documentDirectory + 'tiles/'; // base directory for storing downloaded tiles, organized by zoom/x/y.png
+const tilePath = (z, x, y) => `${TILE_BASE()}${z}/${x}/${y}.png`; 
 
-const loadRegions = async () => {
+const loadRegions = async () => { // loads the list of downloaded regions from storage, returning an empty array if the file doesn't exist or can't be read
   try {
-    const info = await FileSystem.getInfoAsync(REGIONS_FILE());
-    if (!info.exists) return [];
+    const info = await FileSystem.getInfoAsync(REGIONS_FILE()); // check if the regions file exists
+    if (!info.exists) return []; 
     const raw = await FileSystem.readAsStringAsync(REGIONS_FILE());
     return JSON.parse(raw);
   } catch {
@@ -91,13 +91,13 @@ const loadRegions = async () => {
   }
 };
 
-const saveRegions = async (regions) => {
+const saveRegions = async (regions) => { // saves the list of downloaded regions to storage, overwriting any existing file
   await FileSystem.writeAsStringAsync(REGIONS_FILE(), JSON.stringify(regions));
 };
 
 // ─── Cache checker (uses region's own zoom range) ─────────────────────────────
 
-const checkCachedTiles = async (region) => {
+const checkCachedTiles = async (region) => { // checks how many tiles for a given region are already downloaded and cached, by iterating through the expected tile coordinates and checking if the file exists
   const { bbox, minZoom, maxZoom } = region;
   let cached = 0;
   let total = 0;
@@ -121,7 +121,7 @@ const TILE_URL = 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-const RegionDownloadScreen = ({ navigation }) => {
+const RegionDownloadScreen = ({ navigation }) => { 
   const [selectedMode, setSelectedMode] = useState('navigation');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -148,13 +148,13 @@ const RegionDownloadScreen = ({ navigation }) => {
     }
   }, [selectedRegion, selectedMode]);
 
-  const handleSearch = async () => {
+  const handleSearch = async () => { // performs a search using the geocoding function, updating state with results and handling loading/error states
     if (!query.trim()) return;
     setSearching(true);
     setResults([]);
     setSelectedRegion(null);
     try {
-      const found = await geocodeRegion(query.trim());
+      const found = await geocodeRegion(query.trim()); // call the geocoding function with the user's query
       if (found.length === 0) Alert.alert('Not Found', 'No results found. Try a different search term.');
       setResults(found);
     } catch (e) {
@@ -164,15 +164,15 @@ const RegionDownloadScreen = ({ navigation }) => {
     }
   };
 
-  const handleSelectResult = (item) => {
+  const handleSelectResult = (item) => { // when a user selects a search result, set it as the selected region and calculate the tile count for that region
     setSelectedRegion(item);
     setResults([]);
     setQuery(item.name.split(',')[0]);
   };
 
-  const estimateMB = (count) => ((count * 15) / 1024).toFixed(1);
+  const estimateMB = (count) => ((count * 15) / 1024).toFixed(1); // rough estimate of MB size based on average OSM tile size (15 KB)
 
-  const handleDownload = async () => {
+  const handleDownload = async () => { // before starting the download, check if the tile count exceeds the mode's limit and show a confirmation alert with details about the download
     if (!selectedRegion) return;
     if (tileCount > mode.tileLimit) {
       Alert.alert(
@@ -194,80 +194,101 @@ const RegionDownloadScreen = ({ navigation }) => {
   };
 
   const startDownload = async () => {
-    setDownloading(true);
-    setProgress(0);
-    cancelRef.current = false;
-    const { bbox } = selectedRegion;
-    const { minZoom, maxZoom } = mode;
-    let downloaded = 0;
-    let failed = 0;
-    const total = tileCount;
+  // Show the user that downloading has started
+  setDownloading(true);
+  setProgress(0);
+  cancelRef.current = false;
 
-    try {
-      await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true });
+  const { bbox } = selectedRegion; // Get the map area boundaries (north, south, east, west)
+  const { minZoom, maxZoom } = mode; // Get the zoom range (e.g., zoom 10 to 13)
 
-      for (let z = minZoom; z <= maxZoom; z++) {
+  let downloaded = 0;
+  let failed = 0;
+  const total = tileCount;
+
+  try {
+    // Create folders to store the tiles before we start downloading
+    await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true });
+
+    // Loop through each zoom level (zoom 10, then 11, then 12, etc.)
+    for (let z = minZoom; z <= maxZoom; z++) {
+      if (cancelRef.current) break;
+
+      // Convert the map boundaries into tile grid numbers for this zoom level
+      const xMin = lon2tile(bbox.west, z);
+      const xMax = lon2tile(bbox.east, z);
+      const yMin = lat2tile(bbox.north, z);
+      const yMax = lat2tile(bbox.south, z);
+
+      // Loop through each column of tiles (left to right)
+      for (let x = xMin; x <= xMax; x++) {
         if (cancelRef.current) break;
-        const xMin = lon2tile(bbox.west, z);
-        const xMax = lon2tile(bbox.east, z);
-        const yMin = lat2tile(bbox.north, z);
-        const yMax = lat2tile(bbox.south, z);
 
-        for (let x = xMin; x <= xMax; x++) {
+        // Create a folder for this column (e.g., /tiles/13/5123/)
+        await FileSystem.makeDirectoryAsync(`${TILE_BASE()}${z}/${x}/`, { intermediates: true });
+
+        // Loop through each tile in this column (top to bottom)
+        for (let y = yMin; y <= yMax; y++) {
           if (cancelRef.current) break;
-          await FileSystem.makeDirectoryAsync(`${TILE_BASE()}${z}/${x}/`, { intermediates: true });
 
-          for (let y = yMin; y <= yMax; y++) {
-            if (cancelRef.current) break;
-            const path = tilePath(z, x, y);
-            const info = await FileSystem.getInfoAsync(path);
-            if (!info.exists) {
-              const url = TILE_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
-              try {
-                await FileSystem.downloadAsync(url, path);
-              } catch {
-                failed++;
-              }
+          const path = tilePath(z, x, y);
+          const info = await FileSystem.getInfoAsync(path);
+
+          // Only download if we don't already have this tile
+          if (!info.exists) {
+            const url = TILE_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+            try {
+              await FileSystem.downloadAsync(url, path);
+            } catch {
+              failed++; // If download fails, just keep count and move on
             }
-            downloaded++;
-            setProgress(Math.round((downloaded / total) * 100));
-            setProgressText(`Zoom ${z} — ${downloaded}/${total} tiles`);
           }
+
+          downloaded++;
+          setProgress(Math.round((downloaded / total) * 100));
+          setProgressText(`Zoom ${z} — ${downloaded}/${total} tiles`);
         }
       }
-
-      if (!cancelRef.current) {
-        const regionData = {
-          id: Date.now().toString(),
-          name: selectedRegion.name.split(',')[0],
-          fullName: selectedRegion.name,
-          bbox: selectedRegion.bbox,
-          minZoom,
-          maxZoom,
-          mode: mode.id,
-          modeLabel: mode.label,
-          tileCount: downloaded,
-          downloadedAt: new Date().toISOString(),
-          sizeMB: estimateMB(downloaded),
-        };
-        const existing = await loadRegions();
-        const updated = [...existing.filter(r => !(r.name === regionData.name && r.mode === regionData.mode)), regionData];
-        await saveRegions(updated);
-        setDownloadedRegions(updated);
-        Alert.alert(
-          'Download Complete',
-          `${regionData.name} (${mode.label}) downloaded!\n${downloaded.toLocaleString()} tiles, ~${regionData.sizeMB} MB${failed > 0 ? `\n(${failed} tiles failed)` : ''}`,
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (e) {
-      Alert.alert('Download Failed', e.message);
-    } finally {
-      setDownloading(false);
-      setProgress(0);
-      setProgressText('');
     }
-  };
+
+    // If the user didn't cancel, save the downloaded region to the list
+    if (!cancelRef.current) {
+      const regionData = {
+        id: Date.now().toString(),
+        name: selectedRegion.name.split(',')[0],
+        fullName: selectedRegion.name,
+        bbox: selectedRegion.bbox,
+        minZoom,
+        maxZoom,
+        mode: mode.id,
+        modeLabel: mode.label,
+        tileCount: downloaded,
+        downloadedAt: new Date().toISOString(),
+        sizeMB: estimateMB(downloaded),
+      };
+
+      // Load existing regions, remove any duplicate, add the new one, and save
+      const existing = await loadRegions();
+      const updated = [...existing.filter(r => !(r.name === regionData.name && r.mode === regionData.mode)), regionData];
+      await saveRegions(updated);
+      setDownloadedRegions(updated);
+
+      // Show success message
+      Alert.alert(
+        'Download Complete',
+        `${regionData.name} (${mode.label}) downloaded!\n${downloaded.toLocaleString()} tiles, ~${regionData.sizeMB} MB${failed > 0 ? `\n(${failed} tiles failed)` : ''}`,
+        [{ text: 'OK' }]
+      );
+    }
+  } catch (e) {
+    Alert.alert('Download Failed', e.message);
+  } finally {
+    // Clean up: turn off downloading mode and hide progress bar
+    setDownloading(false);
+    setProgress(0);
+    setProgressText('');
+  }
+};
 
   const handleCancel = () => {
     cancelRef.current = true;
@@ -275,7 +296,7 @@ const RegionDownloadScreen = ({ navigation }) => {
     setProgressText('Cancelling...');
   };
 
-  const handleCheckCache = async (region) => {
+  const handleCheckCache = async (region) => { // checks how many tiles for a downloaded region are actually present in the cache
     setCheckingRegion(region.id);
     try {
       const { cached, total } = await checkCachedTiles(region);
@@ -306,7 +327,7 @@ const RegionDownloadScreen = ({ navigation }) => {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            try {
+            try { // to delete a region, we need to iterate through all the tiles that belong to that region (based on its bounding box and zoom levels) and delete the corresponding files from storage, then remove the region from the saved list
               const { bbox, minZoom, maxZoom } = region;
               for (let z = minZoom; z <= maxZoom; z++) {
                 const xMin = lon2tile(bbox.west, z);
