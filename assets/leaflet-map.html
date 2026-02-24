@@ -1,3 +1,10 @@
+"""This is the HTML file for the Leaflet map used in the app. It sets up a 
+full-screen map with custom styles for the user location marker, selected pin, and tree markers. 
+It also includes logic to handle tile loading with a fallback to network tiles if local tiles are not available, 
+and communicates with the React Native app via postMessage for events like map clicks and marker presses."""
+
+
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -57,7 +64,7 @@
     let localTileBase = null;
     let mapCenteredOnUser = false;
 
-    const CachedTileLayer = L.TileLayer.extend({
+    const CachedTileLayer = L.TileLayer.extend({ // custom tile layer that first tries to load tiles from a local path, and if that fails, falls back to the network URL, while also tracking offline status
       createTile: function(coords, done) {
         const tile = document.createElement('img');
         tile.setAttribute('role', 'presentation');
