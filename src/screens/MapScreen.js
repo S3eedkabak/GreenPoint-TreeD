@@ -249,6 +249,24 @@ const MapScreen = ({ navigation }) => {
     return '#FF6B6B';                               // poor
   };
 
+  // Modify the trees rendering logic
+  const filteredTrees = trees;
+
+  // Find the closest tree within 10m
+  let activeTreeId = null;
+  if (userLocation && trees.length > 0) {
+    let minDist = Infinity;
+    trees.forEach(tree => {
+      if (tree.northing && tree.easting) {
+        const dist = calculateDistance(userLocation, { latitude: tree.northing, longitude: tree.easting });
+        if (dist < 10 && dist < minDist) {
+          minDist = dist;
+          activeTreeId = tree.tree_id;
+        }
+      }
+    });
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -264,17 +282,94 @@ const MapScreen = ({ navigation }) => {
         ref={webViewRef}
         source={mapSource}
         style={styles.map}
-        onMessage={handleWebViewMessage}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        originWhitelist={['*']}
-        allowFileAccess={true}
-        allowUniversalAccessFromFileURLs={true}
-        mixedContentMode="always"
-        onError={(e) => console.error('WebView error:', e.nativeEvent)}
-      />
+        provider={PROVIDER_DEFAULT}
+        initialRegion={userLocation ? {
+          ...userLocation,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        } : {
+          latitude: 31.2357,
+          longitude: 34.7818,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        onPress={handleMapPress}
+        onRegionChangeComplete={handleRegionChange} // Track region changes
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+      >
+        {userLocation && (
+          <>
+            <Circle
+              center={userLocation}
+              radius={50}
+              fillColor="rgba(0, 217, 165, 0.2)"
+              strokeColor="rgba(0, 217, 165, 0.5)"
+              strokeWidth={2}
+            />
+            <Marker coordinate={userLocation}>
+              <Animated.View style={[styles.userMarker, { transform: [{ scale: pulseAnim }] }]}>
+                <Ionicons name="person" size={20} color="#000000" />
+              </Animated.View>
+            </Marker>
+          </>
+        )}
 
-      {/* Top bar */}
+        {filteredTrees.map((tree) => {
+          // Color coding by species
+          let fillColor = 'rgba(0,0,0,0.3)';
+          let strokeColor = 'rgba(0,0,0,0.7)';
+          if (tree.species && tree.species.toLowerCase() === 'oak') {
+            fillColor = 'rgba(0,128,0,0.25)'; // green
+            strokeColor = 'rgba(0,128,0,0.7)';
+          } else if (tree.species && tree.species.toLowerCase() === 'pine') {
+            fillColor = 'rgba(255,0,0,0.18)'; // red
+            strokeColor = 'rgba(255,0,0,0.7)';
+          } else if (tree.species && tree.species.toLowerCase() === 'eucalyptus') {
+            fillColor = 'rgba(255,215,0,0.18)'; // yellow
+            strokeColor = 'rgba(255,215,0,0.7)';
+          }
+          // Highlight active tree
+          let highlight = false;
+          if (tree.tree_id === activeTreeId) {
+            fillColor = 'rgba(0,255,255,0.35)'; // cyan highlight
+            strokeColor = 'rgba(0,255,255,1)';
+            highlight = true;
+          }
+          // Increase size: scale radius by 4x (adjust as needed)
+          const baseRadius = tree.crown_radius ? Number(tree.crown_radius) : 1;
+          const radius = baseRadius * 4;
+          return (
+            <React.Fragment key={tree.tree_id}>
+              <Circle
+                center={{ latitude: tree.northing, longitude: tree.easting }}
+                radius={radius}
+                fillColor={fillColor}
+                strokeColor={strokeColor}
+                strokeWidth={highlight ? 5 : 2}
+                zIndex={highlight ? 1000 : 1}
+              />
+              <Marker
+                coordinate={{ latitude: tree.northing, longitude: tree.easting }}
+                onPress={() => handleTreePress(tree)}
+                anchor={{ x: 0.5, y: 0.5 }}
+                zIndex={999}
+              >
+                <View style={{ width: 1, height: 1, backgroundColor: 'transparent' }} />
+              </Marker>
+            </React.Fragment>
+          );
+        })}
+
+        {selectedCoords && (
+          <Marker coordinate={selectedCoords}>
+            <View style={styles.selectedMarker}>
+              <Ionicons name="location" size={40} color="#FF6B6B" />
+            </View>
+          </Marker>
+        )}
+      </MapView>
+
       <View style={styles.topBar}>
         <View style={styles.statsCard}>
           <Ionicons name="leaf-outline" size={24} color="#000" />
