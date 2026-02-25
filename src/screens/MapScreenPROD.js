@@ -16,19 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
 
 const TILE_BASE = FileSystem.documentDirectory + 'tiles/';
-const FORESTRY_ACCURACY_THRESHOLD = 20;
 
-// Calculate distance in metres between two lat/lng points (Haversine formula)
-const calculateDistance = (loc1, loc2) => {
-  const R = 6371000;
-  const lat1 = loc1.latitude * Math.PI / 180;
-  const lat2 = loc2.latitude * Math.PI / 180;
-  const dLat = (loc2.latitude - loc1.latitude) * Math.PI / 180;
-  const dLon = (loc2.longitude - loc1.longitude) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+// Accuracy threshold for forestry — warn user if GPS accuracy is worse than 20m
+const FORESTRY_ACCURACY_THRESHOLD = 20;
 
 const MapScreen = ({ navigation }) => {
   const [trees, setTrees] = useState([]);
@@ -41,7 +31,7 @@ const MapScreen = ({ navigation }) => {
   const [isOnline, setIsOnline] = useState(true);
   const webViewRef = useRef(null);
   const fabScale = useRef(new Animated.Value(0)).current;
-  const locationIntervalRef = useRef(null); // polling for simulator demo
+  const locationWatchRef = useRef(null);
 
   const mapSource = require('../../assets/leaflet-map.html');
 
@@ -57,8 +47,8 @@ const MapScreen = ({ navigation }) => {
     }).start();
 
     return () => {
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
+      if (locationWatchRef.current) {
+        locationWatchRef.current.remove();
       }
     };
   }, []);
@@ -80,30 +70,16 @@ const MapScreen = ({ navigation }) => {
         longitude: userLocation.longitude,
       });
     }
-    // Pass trees with active tree highlighted — teammate's proximity feature
-    const activeTreeId = getActiveTreeId();
-    sendToMap('addTreeMarkers', { trees, activeTreeId });
+    sendToMap('addTreeMarkers', { trees });
   }, [mapReady, userLocation, trees]);
 
+  // Check if device has network connectivity
   const checkConnectivity = async () => {
     try {
       const networkState = await Network.getNetworkStateAsync();
       setIsOnline(networkState.isConnected && networkState.isInternetReachable);
     } catch {
       setIsOnline(false);
-    }
-  };
-
-  // Polling fetch — works on simulator for demo
-  // In production (MapScreenPROD.js) this is replaced with watchPositionAsync
-  const fetchLocation = async () => {
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High, // fused location when online, GPS-only when offline — handled by OS
-      });
-      updateLocation(location);
-    } catch {
-      // silently fail on poll
     }
   };
 
@@ -116,34 +92,82 @@ const MapScreen = ({ navigation }) => {
         return;
       }
 
-      // Check connectivity to show correct accuracy mode in badge
+      // Check connectivity to decide location strategy
       const networkState = await Network.getNetworkStateAsync();
       const online = networkState.isConnected && networkState.isInternetReachable;
       setIsOnline(online);
 
-      // Show last known position immediately while GPS warms up (offline scenario)
-      if (!online) {
-        try {
-          const lastKnown = await Location.getLastKnownPositionAsync({
-            maxAge: 30000,        // only use if less than 30 seconds old
-            requiredAccuracy: 15, // only use if within 15m — matches forestry threshold
-          });
-          if (lastKnown) updateLocation(lastKnown);
-        } catch {
-          // no last known position available
-        }
+      if (online) {
+        // Online: use fused location (GPS + WiFi + cell towers)
+        // Accuracy.High triggers iOS kCLLocationAccuracyBest and Android PRIORITY_HIGH_ACCURACY
+        // The OS automatically combines all available sensors for best result
+        await startOnlineLocationTracking();
+      } else {
+        // Offline: GPS only with last-known-location fallback
+        await startOfflineLocationTracking();
       }
 
-      // Get initial position
-      await fetchLocation();
       setLoading(false);
-
-      // Poll every 2 seconds — keeps simulator location changes working for demo
-      // Production uses watchPositionAsync instead (see MapScreenPROD.js)
-      locationIntervalRef.current = setInterval(fetchLocation, 2000);
     } catch (error) {
-      console.error('Location error:', error);
+      console.error('Location permission error:', error);
       setLoading(false);
+    }
+  };
+
+  const startOnlineLocationTracking = async () => {
+    try {
+      // Get a quick initial fix using fused location (GPS + network)
+      const initial = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High, // Fused: GPS + WiFi + cell towers via OS
+      });
+      updateLocation(initial);
+
+      // Then watch for movement — update every 5m moved or 5s
+      locationWatchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High, // Fused location continues watching
+          distanceInterval: 5,  // update every 5 metres — appropriate for tree-level precision
+          timeInterval: 5000,   // or every 5 seconds as fallback
+        },
+        (location) => updateLocation(location)
+      );
+    } catch (error) {
+      console.error('Online location error:', error);
+      // Fall back to offline tracking if online fails
+      await startOfflineLocationTracking();
+    }
+  };
+
+  const startOfflineLocationTracking = async () => {
+    try {
+      // Try last known location first for instant display while GPS warms up
+      const lastKnown = await Location.getLastKnownPositionAsync({
+        maxAge: 300000, // accept last known if less than 5 minutes old
+        requiredAccuracy: 100, // only use if within 100m accuracy
+      });
+
+      if (lastKnown) {
+        // Show last known position immediately while GPS acquires fresh fix
+        updateLocation(lastKnown);
+      }
+
+      // GPS-only watch — no network assistance
+      // BestForNavigation is the highest accuracy GPS-only mode
+      locationWatchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation, // GPS chip only, no network
+          distanceInterval: 5,   // update every 5 metres
+          timeInterval: 10000,   // GPS updates less frequently offline to save battery
+        },
+        (location) => updateLocation(location)
+      );
+    } catch (error) {
+      console.error('Offline location error:', error);
+      Alert.alert(
+        'GPS Unavailable',
+        'Could not get your location. Make sure you are outdoors with a clear view of the sky.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -151,6 +175,7 @@ const MapScreen = ({ navigation }) => {
     const { latitude, longitude, accuracy } = location.coords;
     setLocationAccuracy(Math.round(accuracy));
     setUserLocation(prev => {
+      // Only re-render if position changed meaningfully (>1m)
       if (
         prev &&
         Math.abs(prev.latitude - latitude) < 0.00001 &&
@@ -160,26 +185,6 @@ const MapScreen = ({ navigation }) => {
       }
       return { latitude, longitude };
     });
-  };
-
-  // Teammate's proximity feature — find closest tree within 10m of user
-  const getActiveTreeId = () => {
-    if (!userLocation || trees.length === 0) return null;
-    let minDist = Infinity;
-    let activeId = null;
-    trees.forEach(tree => {
-      if (tree.northing && tree.easting) {
-        const dist = calculateDistance(userLocation, {
-          latitude: tree.northing,
-          longitude: tree.easting,
-        });
-        if (dist < 10 && dist < minDist) {
-          minDist = dist;
-          activeId = tree.tree_id;
-        }
-      }
-    });
-    return activeId;
   };
 
   const loadTrees = async () => {
@@ -237,7 +242,10 @@ const MapScreen = ({ navigation }) => {
         `Current accuracy is ~${locationAccuracy}m. For precise tree mapping, move to open sky and wait for a better fix.\n\nContinue anyway?`,
         [
           { text: 'Wait for better GPS', style: 'cancel' },
-          { text: 'Continue', onPress: navigateToAddTree },
+          {
+            text: 'Continue',
+            onPress: () => navigateToAddTree(),
+          },
         ]
       );
       return;
@@ -276,11 +284,12 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
+  // Accuracy indicator colour
   const getAccuracyColor = () => {
     if (!locationAccuracy) return '#999';
-    if (locationAccuracy <= 5) return '#00D9A5';
-    if (locationAccuracy <= 20) return '#FFA500';
-    return '#FF6B6B';
+    if (locationAccuracy <= 5) return '#00D9A5';   // excellent
+    if (locationAccuracy <= 20) return '#FFA500';  // acceptable for forestry
+    return '#FF6B6B';                               // poor — warn user
   };
 
   if (loading) {
@@ -322,12 +331,12 @@ const MapScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* GPS accuracy badge */}
+      {/* GPS accuracy indicator */}
       {locationAccuracy && (
         <View style={[styles.accuracyBadge, { borderColor: getAccuracyColor() }]}>
           <Ionicons name="navigate-circle-outline" size={14} color={getAccuracyColor()} />
           <Text style={[styles.accuracyText, { color: getAccuracyColor() }]}>
-            ±{locationAccuracy}m{!isOnline ? ' · GPS only' : ''}
+            ±{locationAccuracy}m {!isOnline ? '· GPS only' : ''}
           </Text>
         </View>
       )}
