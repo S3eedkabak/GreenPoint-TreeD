@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import minimize
+from scipy.optimize import linear_sum_assignment
 
 # Gaussian probability density function
 def gaussian_pdf(x, mu, sigma):
@@ -51,11 +52,24 @@ def log_species_prob(obs_species, db_species, p_wrong):
     else:
         return np.log(p_wrong)
 
-# Generate 5 random (X, Y) offsets for predictions (within -10 to 10 meters)
-random.seed()
-relative_offsets = [(random.uniform(-10, 10), random.uniform(-10, 10)) for _ in range(5)]
-pred_species = ['Fagus', 'Pinus', 'Quercus', 'Picea', 'Populus']
-pred_dbh = [0.15, 0.5, 0.3, 0.1, 0.05]  # Example DBH values (meters)
+# Select a real sequence of 5 trees from the database
+base_idx = 8  # You can change this to pick a different starting point
+ref_E, ref_N = db_E[base_idx], db_N[base_idx]
+
+# Calculate real relative offsets from the first tree
+relative_offsets = []
+pred_species = []
+pred_dbh = []
+for i in range(5):
+    # Offset from the reference tree
+    dx = db_E[base_idx + i] - ref_E
+    dy = db_N[base_idx + i] - ref_N
+    # Add small noise
+    dx += random.uniform(-1, 1)
+    dy += random.uniform(-1, 1)
+    relative_offsets.append((dx, dy))
+    pred_species.append(db_species[base_idx + i])
+    pred_dbh.append(db_dbh[base_idx + i] + random.uniform(-0.01, 0.01))  # Slight DBH noise
 
 # Objective: negative total log-likelihood (so we minimize)
 def objective(ref):
@@ -83,21 +97,25 @@ init_N = np.mean(db_N)
 result = minimize(objective, x0=[init_E, init_N], method='Nelder-Mead')
 opt_E, opt_N = result.x
 
-# Get best predictions and matches
+
+# Get best predictions and enforce unique matches using Hungarian algorithm
 best_pred_points = [(opt_E + dx, opt_N + dy, s, d) for (dx, dy), s, d in zip(relative_offsets, pred_species, pred_dbh)]
-best_matches = []
-for (E_pred, N_pred, species_pred, dbh_pred) in best_pred_points:
-    best_idx = None
-    best_log_likelihood = -np.inf
-    for idx in range(len(db_E)):
-        ll_pos = log_gaussian_2d_pdf(E_pred, N_pred, db_E[idx], db_N[idx], sigma_position)
-        ll_dbh = log_gaussian_1d_pdf(dbh_pred, db_dbh[idx], sigma_dbh)
-        ll_species = log_species_prob(species_pred, db_species[idx], p_wrong_species)
+num_preds = len(best_pred_points)
+num_db = len(db_E)
+
+# Build cost matrix (negative log-likelihood, so lower is better)
+cost_matrix = np.zeros((num_preds, num_db))
+for i, (E_pred, N_pred, species_pred, dbh_pred) in enumerate(best_pred_points):
+    for j in range(num_db):
+        ll_pos = log_gaussian_2d_pdf(E_pred, N_pred, db_E[j], db_N[j], sigma_position)
+        ll_dbh = log_gaussian_1d_pdf(dbh_pred, db_dbh[j], sigma_dbh)
+        ll_species = log_species_prob(species_pred, db_species[j], p_wrong_species)
         ll_total = ll_pos + ll_dbh + ll_species
-        if ll_total > best_log_likelihood:
-            best_log_likelihood = ll_total
-            best_idx = idx
-    best_matches.append((db_E[best_idx], db_N[best_idx], db_species[best_idx], db_dbh[best_idx]))
+        cost_matrix[i, j] = -ll_total  # minimize negative log-likelihood
+
+# Hungarian algorithm for optimal unique assignment
+row_ind, col_ind = linear_sum_assignment(cost_matrix)
+best_matches = [(db_E[j], db_N[j], db_species[j], db_dbh[j]) for j in col_ind]
 
 # Visualization with optional display modes
 show_all = True  # Set to False to show only predicted circles and best matches
