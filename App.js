@@ -6,6 +6,8 @@ import MapScreen from './src/screens/MapScreen';
 import AddTreeScreen from './src/screens/AddTreeScreen';
 import TreeDetailScreen from './src/screens/TreeDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import TreeHeightMeasurementScreen from './src/screens/TreeHeightMeasurementScreen';
+import TreeTrunkMeasurementScreen from './src/screens/TreeTrunkMeasurementScreen';
 import RegionDownloadScreen from './src/screens/RegionDownloadScreen';
 import { initDatabase } from './src/database/db';
 
@@ -59,6 +61,22 @@ export default function App() {
           name="AddTree"
           component={AddTreeScreen}
           options={{ title: 'New Tree', headerBackTitle: 'Back' }}
+        />
+        <Stack.Screen
+          name="MeasureHeight"
+          component={TreeHeightMeasurementScreen}
+          options={{
+            title: 'Measure Tree Height',
+            headerBackTitle: 'Back',
+          }}
+        />
+        <Stack.Screen
+          name="MeasureTrunk"
+          component={TreeTrunkMeasurementScreen}
+          options={{
+            title: 'Measure Trunk (DBH)',
+            headerBackTitle: 'Back',
+          }}
         />
         <Stack.Screen
           name="TreeDetail"

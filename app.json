@@ -30,6 +30,13 @@
       "bundleIdentifier": "com.greenpoint.treed",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to place trees on the map.",
+        "NSMotionUsageDescription": "This app uses motion sensors to measure tree height with the clinometer."
+      },
+      "bundleIdentifier": "com.anonymous.tree-d-mobile-app"
+    },
+    "plugins": [
+      "expo-sqlite",["expo-camera",{"cameraPermission":"This app needs camera access to measure tree trunk with a credit card reference."}],["expo-image-picker",{"photosPermission":"This app needs photo library access to measure tree trunk from saved photos."}]
+    ]
         "NSCameraUsageDescription": "This app needs camera access to take photos of trees.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {

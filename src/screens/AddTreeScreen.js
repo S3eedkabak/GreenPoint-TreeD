@@ -50,6 +50,23 @@ const AddTreeScreen = ({ route, navigation }) => {
     ]).start();
   }, []);
 
+  // Apply measured height when returning from MeasureHeight screen
+  useEffect(() => {
+    const measured = route.params?.measuredHeight;
+    if (measured != null && !isNaN(measured) && measured > 0) {
+      const clamped = Math.max(1, Math.min(50, measured));
+      setTreeHeightSlider(clamped);
+    }
+  }, [route.params?.measuredHeight]);
+
+  // Apply measured DBH when returning from MeasureTrunk screen
+  useEffect(() => {
+    const measured = route.params?.measuredDbh;
+    if (measured != null && !isNaN(measured) && measured > 0) {
+      setDbh(String(measured));
+    }
+  }, [route.params?.measuredDbh]);
+
   const handleSave = async () => {
     // Validate required fields
     if (!species.trim()) {
@@ -211,6 +228,15 @@ const AddTreeScreen = ({ route, navigation }) => {
                 maximumTrackTintColor="#888"
               />
             </View>
+            <TouchableOpacity
+              style={styles.measureButton}
+              onPress={() =>
+                navigation.navigate('MeasureHeight', { latitude, longitude })
+              }
+            >
+              <Ionicons name="phone-portrait-outline" size={18} color="#00D9A5" />
+              <Text style={styles.measureButtonText}>Measure with clinometer</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Optional Fields */}
@@ -230,6 +256,15 @@ const AddTreeScreen = ({ route, navigation }) => {
                 keyboardType="decimal-pad"
               />
             </View>
+            <TouchableOpacity
+              style={styles.measureButton}
+              onPress={() =>
+                navigation.navigate('MeasureTrunk', { latitude, longitude })
+              }
+            >
+              <Ionicons name="camera-outline" size={18} color="#00D9A5" />
+              <Text style={styles.measureButtonText}>Measure with credit card</Text>
+            </TouchableOpacity>
             <Text style={styles.hint}>Stem diameter at breast height (1.3m) in centimeters</Text>
           </View>
 
@@ -490,6 +525,23 @@ const styles = StyleSheet.create({
     color: '#000',
     minWidth: 50,
     textAlign: 'right',
+  },
+  measureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#00D9A5',
+    gap: 8,
+  },
+  measureButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#00D9A5',
   },
   slider: {
     flex: 1,
