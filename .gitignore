@@ -6,3 +6,4 @@ docker-compose.yml
 .dockerignore
 /ios/
 .DS_Store
+/android/

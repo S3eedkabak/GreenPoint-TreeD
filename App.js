@@ -1,6 +1,5 @@
-// Main entry point of the React Native application, setting up navigation and initializing the database.
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapScreen from './src/screens/MapScreen';
@@ -9,17 +8,30 @@ import TreeDetailScreen from './src/screens/TreeDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TreeHeightMeasurementScreen from './src/screens/TreeHeightMeasurementScreen';
 import TreeTrunkMeasurementScreen from './src/screens/TreeTrunkMeasurementScreen';
+import RegionDownloadScreen from './src/screens/RegionDownloadScreen';
 import { initDatabase } from './src/database/db';
 
 const Stack = createStackNavigator();
 
 export default function App() {
+  const [dbReady, setDbReady] = useState(false);
+
   useEffect(() => {
-    // Initialize database on app start
-    initDatabase().catch(error => {
-      console.error('Failed to initialize database:', error);
-    });
+    initDatabase()
+      .then(() => setDbReady(true))
+      .catch(error => {
+        console.error('Failed to initialize database:', error);
+        setDbReady(true); // still render app, let screens handle errors gracefully
+      });
   }, []);
+
+  if (!dbReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#00D9A5" />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
@@ -48,10 +60,7 @@ export default function App() {
         <Stack.Screen
           name="AddTree"
           component={AddTreeScreen}
-          options={{
-            title: 'New Tree',
-            headerBackTitle: 'Back',
-          }}
+          options={{ title: 'New Tree', headerBackTitle: 'Back' }}
         />
         <Stack.Screen
           name="MeasureHeight"
@@ -72,18 +81,17 @@ export default function App() {
         <Stack.Screen
           name="TreeDetail"
           component={TreeDetailScreen}
-          options={{
-            title: 'Tree Details',
-            headerBackTitle: 'Back',
-          }}
+          options={{ title: 'Tree Details', headerBackTitle: 'Back' }}
         />
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
-          options={{
-            title: 'Settings',
-            headerBackTitle: 'Back',
-          }}
+          options={{ title: 'Settings', headerBackTitle: 'Back' }}
+        />
+        <Stack.Screen
+          name="RegionDownload"
+          component={RegionDownloadScreen}
+          options={{ title: 'Offline Maps', headerBackTitle: 'Back' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
