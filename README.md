@@ -198,7 +198,7 @@ Tests the full CSV import/export flow using real CSV files:
 
 ### Manual Testing
 
-Map rendering, offline tile caching, and GPS strategy require a physical device or emulator and cannot be fully automated. These were tested manually by toggling airplane mode and verifying the accuracy badge and tile fallback behaviour. Testing was limited to emulators due to device availability constraints (refer to Impediments).
+Map rendering, offline tile caching, and GPS strategy require a physical device or emulator and cannot be fully automated. These were tested manually by toggling airplane mode and verifying the accuracy badge and tile fallback behaviour. Testing was limited to emulators due to device availability constraints.
 
 ---
 
