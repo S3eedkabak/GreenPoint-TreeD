@@ -11,6 +11,8 @@ GreenPoint is a mobile-first application for foresters and environmental profess
 
 - **Interactive Map Interface** - View and navigate tree locations using React Native Maps
 - **Add Tree Records** - Collect comprehensive tree data including species, height, DBH, crown measurements, and GPS coordinates
+- **Digital Tree Height Measurement** - Clinometer tool using device accelerometer to measure tree height via trigonometry (angle + distance)
+- **Digital Trunk Measurement (DBH)** - Credit card reference tool: take a photo of trunk at breast height with a credit card, tap to measure diameter and circumference
 - **Tree Details** - View detailed information about each recorded tree
 - **Offline Storage** - Local SQLite database for persistent offline data storage
 - **CSV Import/Export** - Import bulk tree data from CSV files with validation and error handling
@@ -24,6 +26,7 @@ GreenPoint is a mobile-first application for foresters and environmental profess
 - **Navigation:** React Navigation 7.1.28 (Stack Navigator)
 - **Maps:** React Native Maps 1.20.1
 - **Storage:** Expo SQLite 16.0.10
+- **Sensors:** Expo Sensors (clinometer for tree height)
 - **Location:** Expo Location 19.0.8
 - **File System:** Expo File System 19.0.21 (for CSV import)
 - **State Management:** React Hooks
@@ -123,6 +126,8 @@ TreeD/
 │   ├── screens/
 │   │   ├── MapScreen.js            # Main map interface
 │   │   ├── AddTreeScreen.js        # Add new tree form
+│   │   ├── TreeHeightMeasurementScreen.js  # Clinometer for measuring tree height
+│   │   ├── TreeTrunkMeasurementScreen.js   # Credit card reference for DBH/circumference
 │   │   ├── TreeDetailScreen.js     # Tree details view
 │   │   └── SettingsScreen.js       # App settings & CSV import
 │   │
