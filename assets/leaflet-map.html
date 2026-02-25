@@ -1,0 +1,234 @@
+"""This is the HTML file for the Leaflet map used in the app. It sets up a 
+full-screen map with custom styles for the user location marker, selected pin, and tree markers. 
+It also includes logic to handle tile loading with a fallback to network tiles if local tiles are not available, 
+and communicates with the React Native app via postMessage for events like map clicks and marker presses."""
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+    #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; background-color: #f0f0f0; }
+
+    .pulse-marker {
+      background: #00D9A5;
+      border: 3px solid white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      box-shadow: 0 0 0 rgba(0, 217, 165, 0.5);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 217, 165, 0.5); }
+      70% { box-shadow: 0 0 0 10px rgba(0, 217, 165, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 217, 165, 0); }
+    }
+
+    .selected-pin-inner {
+      width: 16px;
+      height: 16px;
+      background: #FF6B6B;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    .tree-dot {
+      width: 20px;
+      height: 20px;
+      background: #4CAF50;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(76,175,80,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    let map;
+    let userMarker = null;
+    let userCircle = null;
+    let selectedMarker = null;
+    let treeMarkers = {};
+    let isOffline = false;
+    let localTileBase = null;
+    let mapCenteredOnUser = false;
+
+    const CachedTileLayer = L.TileLayer.extend({ // custom tile layer that first tries to load tiles from a local path, and if that fails, falls back to the network URL, while also tracking offline status
+      createTile: function(coords, done) {
+        const tile = document.createElement('img');
+        tile.setAttribute('role', 'presentation');
+
+        const localPath = localTileBase
+          ? `${localTileBase}${coords.z}/${coords.x}/${coords.y}.png`
+          : null;
+
+        const networkUrl = `https://a.tile.openstreetmap.fr/hot/${coords.z}/${coords.x}/${coords.y}.png`;
+
+        const loadNetwork = () => {
+          tile.onload = () => {
+            if (isOffline) {
+              isOffline = false;
+              sendMessage({ type: 'connectivity', isOffline: false });
+            }
+            done(null, tile);
+          };
+          tile.onerror = () => {
+            if (!isOffline) {
+              isOffline = true;
+              sendMessage({ type: 'connectivity', isOffline: true });
+            }
+            done('Tile load error', tile);
+          };
+          tile.src = networkUrl;
+        };
+
+        if (localPath) {
+          const testImg = new Image();
+          testImg.onload = () => { tile.src = localPath; done(null, tile); };
+          testImg.onerror = () => { loadNetwork(); };
+          testImg.src = localPath;
+        } else {
+          loadNetwork();
+        }
+
+        return tile;
+      }
+    });
+
+    map = L.map('map', {
+      center: [51.3397, 12.3731],
+      zoom: 15,
+      zoomControl: false
+    });
+
+    new CachedTileLayer('', {
+      attribution: '&copy; OpenStreetMap contributors | Tiles &copy; HOT',
+      maxZoom: 19,
+    }).addTo(map);
+
+    function setUserLocation(lat, lng) {
+      if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+      if (userCircle) { map.removeLayer(userCircle); userCircle = null; }
+
+      const pulseIcon = L.divIcon({
+        className: '',
+        html: '<div class="pulse-marker"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+
+      userMarker = L.marker([lat, lng], {
+        icon: pulseIcon,
+        zIndexOffset: 1000,
+        interactive: false
+      }).addTo(map);
+
+      userCircle = L.circle([lat, lng], {
+        radius: 25,
+        color: '#00D9A5',
+        fillColor: '#00D9A5',
+        fillOpacity: 0.1,
+        weight: 1,
+        interactive: false
+      }).addTo(map);
+
+      if (!mapCenteredOnUser) {
+        map.setView([lat, lng], 15);
+        mapCenteredOnUser = true;
+      }
+    }
+
+    function addTreeMarkers(trees) {
+      Object.values(treeMarkers).forEach(m => map.removeLayer(m));
+      treeMarkers = {};
+
+      trees.forEach(tree => {
+        const icon = L.divIcon({
+          className: '',
+          html: '<div class="tree-dot"></div>',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+
+        const marker = L.marker([tree.northing, tree.easting], { icon }).addTo(map);
+        marker.on('click', () => sendMessage({ type: 'treePress', treeId: tree.tree_id }));
+        treeMarkers[tree.tree_id] = marker;
+      });
+    }
+
+    map.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+
+      if (selectedMarker) { map.removeLayer(selectedMarker); selectedMarker = null; }
+
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="selected-pin-inner"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 16]
+      });
+
+      selectedMarker = L.marker([lat, lng], { icon }).addTo(map);
+      sendMessage({ type: 'mapPress', latitude: lat, longitude: lng });
+    });
+
+    function centerOnLocation(lat, lng) {
+      map.setView([lat, lng], 15, { animate: true });
+    }
+
+    function clearSelectedMarker() {
+      if (selectedMarker) { map.removeLayer(selectedMarker); selectedMarker = null; }
+    }
+
+    function sendMessage(data) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(data));
+      }
+    }
+
+    const handleMessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        switch(data.type) {
+          case 'setUserLocation':
+            setUserLocation(data.latitude, data.longitude);
+            break;
+          case 'addTreeMarkers':
+            addTreeMarkers(data.trees);
+            break;
+          case 'centerOnLocation':
+            centerOnLocation(data.latitude, data.longitude);
+            break;
+          case 'clearSelectedMarker':
+            clearSelectedMarker();
+            break;
+          case 'setLocalTileBase':
+            localTileBase = data.path;
+            map.eachLayer(layer => {
+              if (layer instanceof L.TileLayer) layer.redraw();
+            });
+            break;
+        }
+      } catch (e) {
+        console.error('Message error:', e);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    document.addEventListener('message', handleMessage);
+
+    sendMessage({ type: 'mapReady' });
+  </script>
+</body>
+</html>

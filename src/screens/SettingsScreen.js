@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { getAllTrees, syncUnsyncedTrees, exportToCSV } from '../database/db';
+import * as DocumentPicker from 'expo-document-picker';
+import { getAllTrees, syncUnsyncedTrees, exportToCSV, importFromCSV } from '../database/db';
 
 const SettingsScreen = ({ navigation }) => {
   const [treeCount, setTreeCount] = useState(0);
   const [unsyncedCount, setUnsyncedCount] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isCalibrated, setIsCalibrated] = useState(false); // Calibration state
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     loadTreeCount();
@@ -34,13 +35,13 @@ const SettingsScreen = ({ navigation }) => {
       const result = await syncUnsyncedTrees();
       
       if (result.synced > 0) {
-        Alert.alert('✅ Sync Complete', `${result.synced} trees synced to cloud`);
+        Alert.alert('Sync Complete', `${result.synced} trees synced to cloud`);
         loadTreeCount();
       } else {
-        Alert.alert('ℹ️ Info', result.message);
+        Alert.alert('Info', result.message);
       }
     } catch (error) {
-      Alert.alert('❌ Sync Failed', 'No internet connection. Data saved locally.');
+      Alert.alert('Sync Failed', 'No internet connection. Data saved locally.');
     } finally {
       setIsSyncing(false);
     }
@@ -69,50 +70,119 @@ const SettingsScreen = ({ navigation }) => {
         encoding: 'utf8',
       });
 
-      console.log('✅ CSV file created:', fileUri);
+      console.log('CSV file created:', fileUri);
 
       // Share the file
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(fileUri);
       } else {
-        Alert.alert('✅ Export Complete', `CSV saved to: ${fileUri}`);
+        Alert.alert('Export Complete', `CSV saved to: ${fileUri}`);
       }
     } catch (error) {
       console.error('Export error:', error);
-      Alert.alert('❌ Export Failed', `Could not export CSV file: ${error.message}`);
+      Alert.alert('Export Failed', `Could not export CSV file: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleCalibration = () => {
-    setIsCalibrated(true);
-    Alert.alert('Calibration Complete', 'Position has been calibrated successfully.');
+  const handleImportCSV = async () => {
+    try {
+      // Request document picker
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', 'application/csv'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return; // User cancelled
+      }
+
+      setIsImporting(true);
+
+      // Read file content
+      const fileUri = result.assets[0].uri;
+      const csvContent = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: 'utf8',
+      });
+
+      // Import trees
+      const importResult = await importFromCSV(csvContent);
+
+      // Show results
+      let message = `✅ Import Complete!\n\n`;
+      message += `Imported: ${importResult.imported} trees\n`;
+      message += `Total rows: ${importResult.total}\n`;
+      
+      if (importResult.errors > 0) {
+        message += `Errors: ${importResult.errors}\n\n`;
+        message += `Error details:\n${importResult.errorDetails.slice(0, 5).join('\n')}`;
+        if (importResult.errorDetails.length > 5) {
+          message += `\n... and ${importResult.errorDetails.length - 5} more`;
+        }
+      }
+
+      Alert.alert('Import Results', message, [
+        { 
+          text: 'OK', 
+          onPress: () => {
+            loadTreeCount(); // Refresh tree count
+          }
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert(
+        '❌ Import Failed', 
+        `Could not import CSV file: ${error.message}`
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const MenuItem = ({ icon, title, subtitle, onPress, color = '#00D9A5', danger = false, badge = null, disabled = false }) => (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={[styles.menuItem, disabled && styles.menuItemDisabled]}
       onPress={onPress}
       activeOpacity={0.7}
       disabled={disabled}
     >
       <View style={[styles.menuIcon, { backgroundColor: `${color}20` }]}>
-        <Ionicons name={icon} size={24} color={danger ? '#FF6B6B' : color} />
+        <Ionicons 
+          name={icon} 
+          size={24} 
+          color={disabled ? '#666' : (danger ? '#FF6B6B' : color)} 
+        />
       </View>
       <View style={styles.menuContent}>
         <View style={styles.menuTitleRow}>
-          <Text style={[styles.menuTitle, danger && { color: '#FF6B6B' }]}>{title}</Text>
+          <Text style={[
+            styles.menuTitle, 
+            danger && { color: '#FF6B6B' },
+            disabled && { color: '#666' }
+          ]}>
+            {title}
+          </Text>
           {badge !== null && badge > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{badge}</Text>
             </View>
           )}
         </View>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+        {subtitle && (
+          <Text style={[styles.menuSubtitle, disabled && { color: '#555' }]}>
+            {subtitle}
+          </Text>
+        )}
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#666" />
+      {disabled ? (
+        <ActivityIndicator size="small" color="#666" />
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color="#666" />
+      )}
     </TouchableOpacity>
   );
 
@@ -153,31 +223,19 @@ const SettingsScreen = ({ navigation }) => {
         <MenuItem
           icon="download-outline"
           title="Export to CSV"
-          subtitle="Download all tree data"
+          subtitle={isExporting ? "Exporting..." : "Download all tree data"}
           onPress={handleExportCSV}
           color="#00D9A5"
-        />
-      </View>
-
-      {/* Calibration Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Calibration</Text>
-        
-        <MenuItem
-          icon="compass-outline"
-          title="Calibrate Position"
-          subtitle="Required before adding measurements"
-          onPress={handleCalibration}
-          color="#FFA500"
+          disabled={isExporting}
         />
 
         <MenuItem
-          icon="add-circle-outline"
-          title="Add New Measurement"
-          subtitle="Calibrate position to enable"
-          onPress={() => Alert.alert('Action', 'Add new measurement action')}
-          color="#00D9A5"
-          disabled={!isCalibrated} // Disable until calibrated
+          icon="upload-outline"
+          title="Import from CSV"
+          subtitle={isImporting ? "Importing..." : "Load trees from CSV file"}
+          onPress={handleImportCSV}
+          color="#FF6B6B"
+          disabled={isImporting}
         />
       </View>
 
@@ -315,8 +373,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  unmatchedBackground: {
-    backgroundColor: '#FFF3E0', // Light orange background for unmatched records
+  menuItemDisabled: {
+    opacity: 0.5,
   },
 });
 
