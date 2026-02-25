@@ -1,19 +1,61 @@
 {
   "expo": {
+    "name": "TreeD",
+    "slug": "tree-d-mobile-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.greenpoint.treed",
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.greenpoint.treed",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to place trees on the map."
-      },
-      "bundleIdentifier": "com.anonymous.tree-d-mobile-app"
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to place trees on the map.",
+        "NSCameraUsageDescription": "This app needs camera access to take photos of trees.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
+      }
     },
     "plugins": [
-      "expo-sqlite"
-    ]
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow TreeD to use your location to map trees."
+        }
+      ],
+      "expo-dev-client"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e89dd24d-5e8d-4f10-b266-680217f7afdc"
+      }
+    }
   }
 }
