@@ -22,7 +22,6 @@ and communicates with the React Native app via postMessage for events like map c
       border-radius: 50%;
       width: 20px;
       height: 20px;
-      box-shadow: 0 0 0 rgba(0, 217, 165, 0.5);
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
@@ -41,13 +40,33 @@ and communicates with the React Native app via postMessage for events like map c
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     }
 
+    /* Tree dots — colour coded by species (teammate's feature) */
     .tree-dot {
       width: 20px;
       height: 20px;
-      background: #4CAF50;
       border-radius: 50%;
       border: 3px solid white;
-      box-shadow: 0 2px 6px rgba(76,175,80,0.4);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .tree-dot-oak        { background: #2e7d32; }
+    .tree-dot-pine       { background: #c62828; }
+    .tree-dot-eucalyptus { background: #f9a825; }
+    .tree-dot-default    { background: #4CAF50; }
+
+    /* Active tree — cyan highlight when user is within 10m (teammate's feature) */
+    .tree-dot-active {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px solid #00e5ff;
+      box-shadow: 0 0 0 3px rgba(0,229,255,0.4), 0 2px 6px rgba(0,0,0,0.3);
+      background: #00bcd4;
+      animation: activePulse 1.5s infinite;
+    }
+    @keyframes activePulse {
+      0% { box-shadow: 0 0 0 0 rgba(0,229,255,0.6), 0 2px 6px rgba(0,0,0,0.3); }
+      70% { box-shadow: 0 0 0 8px rgba(0,229,255,0), 0 2px 6px rgba(0,0,0,0.3); }
+      100% { box-shadow: 0 0 0 0 rgba(0,229,255,0), 0 2px 6px rgba(0,0,0,0.3); }
     }
   </style>
 </head>
@@ -64,7 +83,17 @@ and communicates with the React Native app via postMessage for events like map c
     let localTileBase = null;
     let mapCenteredOnUser = false;
 
-    const CachedTileLayer = L.TileLayer.extend({ // custom tile layer that first tries to load tiles from a local path, and if that fails, falls back to the network URL, while also tracking offline status
+    // Returns the correct CSS class for a tree dot based on species
+    function getTreeDotClass(species, isActive) {
+      if (isActive) return 'tree-dot tree-dot-active';
+      const s = (species || '').toLowerCase();
+      if (s === 'oak') return 'tree-dot tree-dot-oak';
+      if (s === 'pine') return 'tree-dot tree-dot-pine';
+      if (s === 'eucalyptus') return 'tree-dot tree-dot-eucalyptus';
+      return 'tree-dot tree-dot-default';
+    }
+
+    const CachedTileLayer = L.TileLayer.extend({
       createTile: function(coords, done) {
         const tile = document.createElement('img');
         tile.setAttribute('role', 'presentation');
@@ -77,17 +106,11 @@ and communicates with the React Native app via postMessage for events like map c
 
         const loadNetwork = () => {
           tile.onload = () => {
-            if (isOffline) {
-              isOffline = false;
-              sendMessage({ type: 'connectivity', isOffline: false });
-            }
+            if (isOffline) { isOffline = false; sendMessage({ type: 'connectivity', isOffline: false }); }
             done(null, tile);
           };
           tile.onerror = () => {
-            if (!isOffline) {
-              isOffline = true;
-              sendMessage({ type: 'connectivity', isOffline: true });
-            }
+            if (!isOffline) { isOffline = true; sendMessage({ type: 'connectivity', isOffline: true }); }
             done('Tile load error', tile);
           };
           tile.src = networkUrl;
@@ -106,11 +129,7 @@ and communicates with the React Native app via postMessage for events like map c
       }
     });
 
-    map = L.map('map', {
-      center: [51.3397, 12.3731],
-      zoom: 15,
-      zoomControl: false
-    });
+    map = L.map('map', { center: [51.3397, 12.3731], zoom: 15, zoomControl: false });
 
     new CachedTileLayer('', {
       attribution: '&copy; OpenStreetMap contributors | Tiles &copy; HOT',
@@ -128,20 +147,8 @@ and communicates with the React Native app via postMessage for events like map c
         iconAnchor: [10, 10]
       });
 
-      userMarker = L.marker([lat, lng], {
-        icon: pulseIcon,
-        zIndexOffset: 1000,
-        interactive: false
-      }).addTo(map);
-
-      userCircle = L.circle([lat, lng], {
-        radius: 25,
-        color: '#00D9A5',
-        fillColor: '#00D9A5',
-        fillOpacity: 0.1,
-        weight: 1,
-        interactive: false
-      }).addTo(map);
+      userMarker = L.marker([lat, lng], { icon: pulseIcon, zIndexOffset: 1000, interactive: false }).addTo(map);
+      userCircle = L.circle([lat, lng], { radius: 25, color: '#00D9A5', fillColor: '#00D9A5', fillOpacity: 0.1, weight: 1, interactive: false }).addTo(map);
 
       if (!mapCenteredOnUser) {
         map.setView([lat, lng], 15);
@@ -149,19 +156,23 @@ and communicates with the React Native app via postMessage for events like map c
       }
     }
 
-    function addTreeMarkers(trees) {
+    function addTreeMarkers(trees, activeTreeId) {
       Object.values(treeMarkers).forEach(m => map.removeLayer(m));
       treeMarkers = {};
 
       trees.forEach(tree => {
+        const isActive = tree.tree_id === activeTreeId;
+        const dotClass = getTreeDotClass(tree.species, isActive);
+        const size = isActive ? 24 : 20;
+
         const icon = L.divIcon({
           className: '',
-          html: '<div class="tree-dot"></div>',
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
+          html: `<div class="${dotClass}"></div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2]
         });
 
-        const marker = L.marker([tree.northing, tree.easting], { icon }).addTo(map);
+        const marker = L.marker([tree.northing, tree.easting], { icon, zIndexOffset: isActive ? 500 : 0 }).addTo(map);
         marker.on('click', () => sendMessage({ type: 'treePress', treeId: tree.tree_id }));
         treeMarkers[tree.tree_id] = marker;
       });
@@ -169,7 +180,6 @@ and communicates with the React Native app via postMessage for events like map c
 
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
-
       if (selectedMarker) { map.removeLayer(selectedMarker); selectedMarker = null; }
 
       const icon = L.divIcon({
@@ -205,7 +215,7 @@ and communicates with the React Native app via postMessage for events like map c
             setUserLocation(data.latitude, data.longitude);
             break;
           case 'addTreeMarkers':
-            addTreeMarkers(data.trees);
+            addTreeMarkers(data.trees, data.activeTreeId || null);
             break;
           case 'centerOnLocation':
             centerOnLocation(data.latitude, data.longitude);
@@ -215,9 +225,7 @@ and communicates with the React Native app via postMessage for events like map c
             break;
           case 'setLocalTileBase':
             localTileBase = data.path;
-            map.eachLayer(layer => {
-              if (layer instanceof L.TileLayer) layer.redraw();
-            });
+            map.eachLayer(layer => { if (layer instanceof L.TileLayer) layer.redraw(); });
             break;
         }
       } catch (e) {
