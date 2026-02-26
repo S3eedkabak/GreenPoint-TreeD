@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Network from 'expo-network';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllTrees } from '../database/db';
@@ -18,7 +18,6 @@ import { getAllTrees } from '../database/db';
 const TILE_BASE = FileSystem.documentDirectory + 'tiles/';
 const FORESTRY_ACCURACY_THRESHOLD = 20;
 
-// Calculate distance in metres between two lat/lng points (Haversine formula)
 const calculateDistance = (loc1, loc2) => {
   const R = 6371000;
   const lat1 = loc1.latitude * Math.PI / 180;
@@ -30,60 +29,184 @@ const calculateDistance = (loc1, loc2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const MapScreen = ({ navigation }) => {
+// Build tile index by scanning the tile directory tree.
+// Returns { "z/x/y": "file:///full/path/z/x/y.png" }
+// Paths are kept in RN memory so we can read them on demand.
+// Only presence flags { "z/x/y": true } are sent to the WebView (tiny payload).
+const buildTileIndex = async () => {
+  const index = {};
+  try {
+    const zoomDirs = await FileSystem.readDirectoryAsync(TILE_BASE);
+    for (const z of zoomDirs) {
+      try {
+        const xDirs = await FileSystem.readDirectoryAsync(`${TILE_BASE}${z}/`);
+        for (const x of xDirs) {
+          try {
+            const yFiles = await FileSystem.readDirectoryAsync(`${TILE_BASE}${z}/${x}/`);
+            for (const yFile of yFiles) {
+              if (!yFile.endsWith('.png')) continue;
+              const y = yFile.replace('.png', '');
+              index[`${z}/${x}/${y}`] = `${TILE_BASE}${z}/${x}/${yFile}`;
+            }
+          } catch { /* not a directory */ }
+        }
+      } catch { /* not a directory */ }
+    }
+  } catch {
+    // tiles folder doesn't exist yet — network will be used
+  }
+  console.log(`Tile index built: ${Object.keys(index).length} tiles`);
+  return index;
+};
+
+// Defined outside component so the require() call is stable and never changes.
+// This prevents the WebView from thinking its source changed and reloading.
+const MAP_SOURCE = require('../../assets/leaflet-map.html');
+
+const MapScreen = ({ navigation, route }) => {
   const [trees, setTrees] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedCoords, setSelectedCoords] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
+  const [tileIndex, setTileIndex] = useState(null);
   const [isOffline, setIsOffline] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(null);
+
   const webViewRef = useRef(null);
   const fabScale = useRef(new Animated.Value(0)).current;
-  const locationIntervalRef = useRef(null); // polling for simulator demo
+  const locationIntervalRef = useRef(null);
 
-  const mapSource = require('../../assets/leaflet-map.html');
+  // Refs that mirror state — lets focus/message callbacks always read the
+  // latest value without needing to be re-registered (avoids stale closures).
+  const mapReadyRef = useRef(false);
+  const tileIndexRef = useRef(null);
+  const treesRef = useRef([]);
+  const userLocationRef = useRef(null);
 
+  // Pending goTo from RegionDownload "View on Map" button
+  const pendingGoTo = useRef(null);
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  const sendToMap = useCallback((type, data = {}) => {
+    if (webViewRef.current) {
+      webViewRef.current.postMessage(JSON.stringify({ type, ...data }));
+    }
+  }, []);
+
+  const sendTileIndex = useCallback((index) => {
+    if (!webViewRef.current || !index) return;
+    const presenceFlags = {};
+    Object.keys(index).forEach(k => { presenceFlags[k] = true; });
+    webViewRef.current.postMessage(JSON.stringify({
+      type: 'setTileIndex',
+      index: presenceFlags,
+    }));
+  }, []);
+
+  const getActiveTreeId = useCallback((location, treeList) => {
+    if (!location || !treeList || treeList.length === 0) return null;
+    let minDist = Infinity;
+    let activeId = null;
+    treeList.forEach(tree => {
+      if (tree.northing && tree.easting) {
+        const dist = calculateDistance(location, { latitude: tree.northing, longitude: tree.easting });
+        if (dist < 10 && dist < minDist) { minDist = dist; activeId = tree.tree_id; }
+      }
+    });
+    return activeId;
+  }, []);
+
+  // ─── Initial mount ────────────────────────────────────────────────────────
   useEffect(() => {
+    buildTileIndex().then(index => {
+      setTileIndex(index);
+      tileIndexRef.current = index;
+    });
     checkConnectivity();
     requestLocationPermission();
     loadTrees();
-
-    Animated.spring(fabScale, {
-      toValue: 1,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
-
+    Animated.spring(fabScale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
     return () => {
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
-      }
+      if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     };
   }, []);
 
+  // ─── Keep refs in sync with state ────────────────────────────────────────
+  useEffect(() => { mapReadyRef.current = mapReady; }, [mapReady]);
+  useEffect(() => { tileIndexRef.current = tileIndex; }, [tileIndex]);
+  useEffect(() => { treesRef.current = trees; }, [trees]);
+  useEffect(() => { userLocationRef.current = userLocation; }, [userLocation]);
+
+  // ─── Send tile index once map is ready and index is available ────────────
+  useEffect(() => {
+    if (!mapReady || !tileIndex) return;
+    sendTileIndex(tileIndex);
+  }, [mapReady, tileIndex, sendTileIndex]);
+
+  // ─── Send trees when map becomes ready ───────────────────────────────────
+  useEffect(() => {
+    if (!mapReady) return;
+    sendToMap('addTreeMarkers', {
+      trees,
+      activeTreeId: getActiveTreeId(userLocationRef.current, trees),
+    });
+  }, [mapReady, trees, sendToMap, getActiveTreeId]);
+
+  // ─── Send user location when it changes ──────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !userLocation) return;
+    sendToMap('setUserLocation', {
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    });
+  }, [mapReady, userLocation, sendToMap]);
+
+  // ─── Focus listener — uses refs so callbacks never have stale closures ───
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadTrees();
       checkConnectivity();
+
+      // Handle goTo params from RegionDownload "View on Map"
+      const params = route.params || {};
+      if (params.goToLat != null && params.goToLng != null) {
+        const goTo = {
+          lat: params.goToLat,
+          lng: params.goToLng,
+          zoom: params.goToZoom || 14,
+        };
+        // Clear params so a subsequent focus doesn't repeat the jump
+        navigation.setParams({ goToLat: null, goToLng: null, goToZoom: null });
+
+        if (mapReadyRef.current) {
+          // WebView is alive (detachPreviousScreen:false kept it mounted) — fire now
+          sendToMap('goToLocation', {
+            latitude: goTo.lat,
+            longitude: goTo.lng,
+            zoom: goTo.zoom,
+          });
+        } else {
+          // WebView not ready yet — store and fire from the mapReady handler
+          pendingGoTo.current = goTo;
+        }
+      }
+
+      // Rebuild tile index — user may have downloaded new regions while away.
+      buildTileIndex().then(index => {
+        setTileIndex(index);
+        tileIndexRef.current = index;
+        if (mapReadyRef.current) sendTileIndex(index);
+      });
     });
     return unsubscribe;
-  }, [navigation]);
+    // Intentionally minimal deps — refs handle current values internally.
+  }, [navigation, sendToMap, sendTileIndex]);
 
-  useEffect(() => {
-    if (!mapReady) return;
-    sendToMap('setLocalTileBase', { path: TILE_BASE });
-    if (userLocation) {
-      sendToMap('setUserLocation', {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      });
-    }
-    // Pass trees with active tree highlighted — teammate's proximity feature
-    const activeTreeId = getActiveTreeId();
-    sendToMap('addTreeMarkers', { trees, activeTreeId });
-  }, [mapReady, userLocation, trees]);
+  // ─── Data & location ─────────────────────────────────────────────────────
 
   const checkConnectivity = async () => {
     try {
@@ -94,17 +217,13 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  // Polling fetch — works on simulator for demo
-  // In production (MapScreenPROD.js) this is replaced with watchPositionAsync
   const fetchLocation = async () => {
     try {
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High, // fused location when online, GPS-only when offline — handled by OS
+        accuracy: Location.Accuracy.High,
       });
       updateLocation(location);
-    } catch {
-      // silently fail on poll
-    }
+    } catch { /* silently fail on poll */ }
   };
 
   const requestLocationPermission = async () => {
@@ -116,30 +235,22 @@ const MapScreen = ({ navigation }) => {
         return;
       }
 
-      // Check connectivity to show correct accuracy mode in badge
       const networkState = await Network.getNetworkStateAsync();
       const online = networkState.isConnected && networkState.isInternetReachable;
       setIsOnline(online);
 
-      // Show last known position immediately while GPS warms up (offline scenario)
       if (!online) {
         try {
           const lastKnown = await Location.getLastKnownPositionAsync({
-            maxAge: 30000,        // only use if less than 30 seconds old
-            requiredAccuracy: 15, // only use if within 15m — matches forestry threshold
+            maxAge: 30000,
+            requiredAccuracy: 15,
           });
           if (lastKnown) updateLocation(lastKnown);
-        } catch {
-          // no last known position available
-        }
+        } catch { /* no last known */ }
       }
 
-      // Get initial position
       await fetchLocation();
       setLoading(false);
-
-      // Poll every 2 seconds — keeps simulator location changes working for demo
-      // Production uses watchPositionAsync instead (see MapScreenPROD.js)
       locationIntervalRef.current = setInterval(fetchLocation, 2000);
     } catch (error) {
       console.error('Location error:', error);
@@ -151,41 +262,16 @@ const MapScreen = ({ navigation }) => {
     const { latitude, longitude, accuracy } = location.coords;
     setLocationAccuracy(Math.round(accuracy));
     setUserLocation(prev => {
-      if (
-        prev &&
+      if (prev &&
         Math.abs(prev.latitude - latitude) < 0.00001 &&
-        Math.abs(prev.longitude - longitude) < 0.00001
-      ) {
-        return prev;
-      }
+        Math.abs(prev.longitude - longitude) < 0.00001) return prev;
       return { latitude, longitude };
     });
-  };
-
-  // Teammate's proximity feature — find closest tree within 10m of user
-  const getActiveTreeId = () => {
-    if (!userLocation || trees.length === 0) return null;
-    let minDist = Infinity;
-    let activeId = null;
-    trees.forEach(tree => {
-      if (tree.northing && tree.easting) {
-        const dist = calculateDistance(userLocation, {
-          latitude: tree.northing,
-          longitude: tree.easting,
-        });
-        if (dist < 10 && dist < minDist) {
-          minDist = dist;
-          activeId = tree.tree_id;
-        }
-      }
-    });
-    return activeId;
   };
 
   const loadTrees = async () => {
     try {
       const allTrees = await getAllTrees();
-      console.log('Total trees loaded:', allTrees.length);
       setTrees(allTrees);
     } catch (error) {
       console.error('Error loading trees:', error);
@@ -193,29 +279,95 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
-  const sendToMap = (type, data = {}) => {
-    if (webViewRef.current) {
-      const message = JSON.stringify({ type, ...data });
-      webViewRef.current.postMessage(message);
-    }
-  };
-
+  // ─── WebView message handler ──────────────────────────────────────────────
   const handleWebViewMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       switch (data.type) {
+
         case 'mapReady':
           setMapReady(true);
+          mapReadyRef.current = true;
+          // Push all initial state into the WebView now that it's ready.
+          // Use refs so we always have the latest values regardless of when
+          // mapReady fires relative to other state updates.
+          if (tileIndexRef.current) sendTileIndex(tileIndexRef.current);
+          if (treesRef.current.length > 0) {
+            sendToMap('addTreeMarkers', {
+              trees: treesRef.current,
+              activeTreeId: getActiveTreeId(userLocationRef.current, treesRef.current),
+            });
+          }
+          if (userLocationRef.current) {
+            sendToMap('setUserLocation', {
+              latitude: userLocationRef.current.latitude,
+              longitude: userLocationRef.current.longitude,
+            });
+          }
+          // Fire any pending goTo queued while the WebView was loading
+          if (pendingGoTo.current) {
+            sendToMap('goToLocation', {
+              latitude: pendingGoTo.current.lat,
+              longitude: pendingGoTo.current.lng,
+              zoom: pendingGoTo.current.zoom,
+            });
+            pendingGoTo.current = null;
+          }
           break;
+
         case 'mapPress':
           setSelectedCoords({ latitude: data.latitude, longitude: data.longitude });
           break;
+
         case 'treePress':
           navigation.navigate('TreeDetail', { treeId: data.treeId });
           break;
+
         case 'connectivity':
           setIsOffline(data.isOffline);
           break;
+
+        case 'tileIndexReceived':
+          console.log(`WebView has ${data.count} cached tiles ready`);
+          break;
+
+        case 'tileRequest':
+          // WebView wants a specific cached tile. Read from disk as base64 and
+          // return a data URI — works on both iOS and Android, avoids all
+          // file:// cross-origin restrictions.
+          (async () => {
+            try {
+              const filePath = tileIndexRef.current ? tileIndexRef.current[data.key] : null;
+              if (!filePath) {
+                webViewRef.current?.postMessage(JSON.stringify({
+                  type: 'tileResponse',
+                  requestId: data.requestId,
+                  error: 'not_found',
+                }));
+                return;
+              }
+              const base64 = await FileSystem.readAsStringAsync(filePath, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              webViewRef.current?.postMessage(JSON.stringify({
+                type: 'tileResponse',
+                requestId: data.requestId,
+                dataUri: `data:image/png;base64,${base64}`,
+              }));
+            } catch {
+              webViewRef.current?.postMessage(JSON.stringify({
+                type: 'tileResponse',
+                requestId: data.requestId,
+                error: 'read_error',
+              }));
+            }
+          })();
+          break;
+
+        case 'zoomLevel':
+          setZoomLevel(data.zoom);
+          break;
+
         default:
           break;
       }
@@ -224,13 +376,13 @@ const MapScreen = ({ navigation }) => {
     }
   };
 
+  // ─── UI handlers ─────────────────────────────────────────────────────────
+
   const handleAddTree = () => {
     if (!selectedCoords) {
       Alert.alert('No Location Selected', 'Tap on the map or use Confirm Location to select a spot');
       return;
     }
-
-    // Warn forester if GPS accuracy is poor before logging a tree
     if (locationAccuracy && locationAccuracy > FORESTRY_ACCURACY_THRESHOLD) {
       Alert.alert(
         'Low GPS Accuracy',
@@ -242,7 +394,6 @@ const MapScreen = ({ navigation }) => {
       );
       return;
     }
-
     navigateToAddTree();
   };
 
@@ -260,6 +411,7 @@ const MapScreen = ({ navigation }) => {
       sendToMap('centerOnLocation', {
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
+        zoom: 13,
       });
     }
   };
@@ -283,6 +435,13 @@ const MapScreen = ({ navigation }) => {
     return '#FF6B6B';
   };
 
+  const getZoomColor = () => {
+    if (zoomLevel >= 10 && zoomLevel <= 18) return '#00D9A5';
+    return '#FFA500';
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -296,7 +455,7 @@ const MapScreen = ({ navigation }) => {
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        source={mapSource}
+        source={MAP_SOURCE}
         style={styles.map}
         onMessage={handleWebViewMessage}
         javaScriptEnabled={true}
@@ -304,6 +463,7 @@ const MapScreen = ({ navigation }) => {
         originWhitelist={['*']}
         allowFileAccess={true}
         allowUniversalAccessFromFileURLs={true}
+        allowFileAccessFromFileURLs={true}
         mixedContentMode="always"
         onError={(e) => console.error('WebView error:', e.nativeEvent)}
       />
@@ -314,20 +474,27 @@ const MapScreen = ({ navigation }) => {
           <Ionicons name="leaf-outline" size={24} color="#000" />
           <Text style={styles.statsText}>{trees.length} Trees</Text>
         </View>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
+        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('Settings')}>
           <Ionicons name="settings-outline" size={24} color="#000" />
         </TouchableOpacity>
       </View>
 
-      {/* GPS accuracy badge */}
+      {/* Accuracy badge */}
       {locationAccuracy && (
         <View style={[styles.accuracyBadge, { borderColor: getAccuracyColor() }]}>
           <Ionicons name="navigate-circle-outline" size={14} color={getAccuracyColor()} />
-          <Text style={[styles.accuracyText, { color: getAccuracyColor() }]}>
+          <Text style={[styles.badgeText, { color: getAccuracyColor() }]}>
             ±{locationAccuracy}m{!isOnline ? ' · GPS only' : ''}
+          </Text>
+        </View>
+      )}
+
+      {/* Zoom badge */}
+      {zoomLevel && (
+        <View style={[styles.zoomBadge, { borderColor: getZoomColor() }]}>
+          <Ionicons name="layers-outline" size={14} color={getZoomColor()} />
+          <Text style={[styles.badgeText, { color: getZoomColor() }]}>
+            z{zoomLevel}
           </Text>
         </View>
       )}
@@ -341,10 +508,7 @@ const MapScreen = ({ navigation }) => {
       )}
 
       {/* Offline maps button */}
-      <TouchableOpacity
-        style={styles.offlineMapsBtn}
-        onPress={() => navigation.navigate('RegionDownload')}
-      >
+      <TouchableOpacity style={styles.offlineMapsBtn} onPress={() => navigation.navigate('RegionDownload')}>
         <Ionicons name="map-outline" size={22} color="#000" />
       </TouchableOpacity>
 
@@ -373,7 +537,7 @@ const MapScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* Fixed center pin */}
+      {/* Fixed centre pin */}
       <View pointerEvents="none" style={styles.centerPin}>
         <Ionicons name="location" size={40} color="#FF6B6B" />
       </View>
@@ -401,20 +565,21 @@ const styles = StyleSheet.create({
   statsText: { color: '#000', fontSize: 16, fontWeight: '700', marginLeft: 10 },
   menuButton: { backgroundColor: '#fff', width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(200,200,200,0.5)' },
   accuracyBadge: { position: 'absolute', top: 110, left: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, gap: 4 },
-  accuracyText: { fontSize: 12, fontWeight: '600' },
-  offlineBanner: { position: 'absolute', top: 110, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.9)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, gap: 6 },
+  zoomBadge: { position: 'absolute', top: 148, left: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, gap: 4 },
+  badgeText: { fontSize: 12, fontWeight: '600' },
+  offlineBanner: { position: 'absolute', bottom: 85, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.95)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, gap: 6 },
   offlineText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   offlineMapsBtn: { position: 'absolute', bottom: 200, right: 20, backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
   recenterButton: { position: 'absolute', bottom: 130, right: 20, backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
   fabContainer: { position: 'absolute', bottom: 110, alignSelf: 'center' },
   fab: { backgroundColor: '#fff', height: 70, width: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10 },
   fabDisabled: { backgroundColor: 'rgba(255,255,255,0.5)' },
-  tooltip: { position: 'absolute', bottom: 200, left: 20, backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
+  tooltip: { position: 'absolute', bottom: 230, left: 20, backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
   tooltipText: { color: '#000', fontSize: 14, marginLeft: 8, fontWeight: '500' },
   centerPin: { position: 'absolute', top: '50%', left: '50%', marginLeft: -20, marginTop: -40 },
   confirmButton: { position: 'absolute', bottom: 45, alignSelf: 'center', backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 6 },
   confirmButtonText: { color: '#000', fontSize: 16, fontWeight: '600' },
-  attribution: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.7)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  attribution: { position: 'absolute', bottom: 10, left: 10, backgroundColor: 'rgba(255,255,255,0.7)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   attributionText: { fontSize: 10, color: '#000' },
 });
 

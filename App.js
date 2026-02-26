@@ -21,7 +21,7 @@ export default function App() {
       .then(() => setDbReady(true))
       .catch(error => {
         console.error('Failed to initialize database:', error);
-        setDbReady(true); // still render app, let screens handle errors gracefully
+        setDbReady(true);
       });
   }, []);
 
@@ -65,18 +65,12 @@ export default function App() {
         <Stack.Screen
           name="MeasureHeight"
           component={TreeHeightMeasurementScreen}
-          options={{
-            title: 'Measure Tree Height',
-            headerBackTitle: 'Back',
-          }}
+          options={{ title: 'Measure Tree Height', headerBackTitle: 'Back' }}
         />
         <Stack.Screen
           name="MeasureTrunk"
           component={TreeTrunkMeasurementScreen}
-          options={{
-            title: 'Measure Trunk (DBH)',
-            headerBackTitle: 'Back',
-          }}
+          options={{ title: 'Measure Trunk (DBH)', headerBackTitle: 'Back' }}
         />
         <Stack.Screen
           name="TreeDetail"
@@ -88,10 +82,21 @@ export default function App() {
           component={SettingsScreen}
           options={{ title: 'Settings', headerBackTitle: 'Back' }}
         />
+        {/*
+          detachPreviousScreen: false keeps MapScreen (and its WebView) fully
+          mounted and alive while RegionDownload is on top of the stack.
+          Without this, navigating back from RegionDownload causes the WebView
+          to remount and reload leaflet-map-bundled.html via the RN local HTTP
+          server — which iOS blocks when the device is offline (NSURLErrorDomain -1009).
+        */}
         <Stack.Screen
           name="RegionDownload"
           component={RegionDownloadScreen}
-          options={{ title: 'Offline Maps', headerBackTitle: 'Back' }}
+          options={{
+            title: 'Offline Maps',
+            headerBackTitle: 'Back',
+            detachPreviousScreen: false,
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>
