@@ -54,7 +54,7 @@ const MODES = {
 };
 
 const geocodeRegion = async (query) => {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`; 
   const res = await fetch(url, { headers: { 'User-Agent': 'TreeDApp/1.0' } });
   const data = await res.json();
   return data.map(item => ({
@@ -90,17 +90,17 @@ const checkCachedTiles = async (region, cancelSignal) => {
   const { bbox, minZoom, maxZoom } = region;
   let cached = 0;
   let total = 0;
-  for (let z = minZoom; z <= maxZoom; z++) {
-    const xMin = lon2tile(bbox.west, z);
-    const xMax = lon2tile(bbox.east, z);
-    const yMin = lat2tile(bbox.north, z);
-    const yMax = lat2tile(bbox.south, z);
+  for (let z = minZoom; z <= maxZoom; z++) { 
+    const xMin = lon2tile(bbox.west, z); // Convert lat/lon to tile coordinates at this zoom level
+    const xMax = lon2tile(bbox.east, z); // This gives the range of tiles that cover the region's bounding box
+    const yMin = lat2tile(bbox.north, z);// Iterate over this tile range and check if each tile exists in the cache (file system)
+    const yMax = lat2tile(bbox.south, z);// Keep track of how many tiles are cached vs total to provide feedback to the user about cache status
     for (let x = xMin; x <= xMax; x++) {
       for (let y = yMin; y <= yMax; y++) {
         if (cancelSignal?.cancelled) return null;
         total++;
         try {
-          const info = await FileSystem.getInfoAsync(tilePath(z, x, y));
+          const info = await FileSystem.getInfoAsync(tilePath(z, x, y)); // This checks if the tile file exists without trying to read it, if file exist, add count
           if (info.exists) cached++;
         } catch { /* file doesn't exist */ }
       }
@@ -148,7 +148,7 @@ const RegionDownloadScreen = ({ navigation }) => {
       if (found.length === 0) Alert.alert('Not Found', 'No results found. Try a different search term.');
       setResults(found);
     } catch {
-      Alert.alert('Error', 'Could not search. Check your internet connection.');
+      Alert.alert('Error', 'Could not search. Check your internet connection.'); // requires internet
     } finally {
       setSearching(false);
     }
@@ -164,7 +164,7 @@ const RegionDownloadScreen = ({ navigation }) => {
 
   const handleDownload = async () => {
     if (!selectedRegion) return;
-    if (tileCount > mode.tileLimit) {
+    if (tileCount > mode.tileLimit) { // set limit to avoid Huge downloads that can fill up the device or take too long
       Alert.alert(
         'Region Too Large',
         selectedMode === 'navigation'
@@ -183,7 +183,10 @@ const RegionDownloadScreen = ({ navigation }) => {
     );
   };
 
-  const startDownload = async () => {
+  const startDownload = async () => { 
+  // This function handles the actual downloading of tiles. It iterates through the required zoom levels and tile coordinates, 
+  // checks if each tile already exists in the cache, and if not, downloads it from the tile server. 
+  // It also updates progress state to provide feedback to the user and handles cancellation.
     setDownloading(true);
     setProgress(0);
     cancelRef.current = false;
@@ -195,21 +198,24 @@ const RegionDownloadScreen = ({ navigation }) => {
     const total = tileCount;
 
     try {
-      await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true });
+      await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true }); // Ensure base tile directory exists
 
       for (let z = minZoom; z <= maxZoom; z++) {
-        if (cancelRef.current) break;
+        if (cancelRef.current) break; //  if cancel, stop
 
         const xMin = lon2tile(bbox.west, z);
         const xMax = lon2tile(bbox.east, z);
         const yMin = lat2tile(bbox.north, z);
         const yMax = lat2tile(bbox.south, z);
 
-        for (let x = xMin; x <= xMax; x++) {
+        for (let x = xMin; x <= xMax; x++) { // Iterate through the tile coordinates that cover the selected region at this zoom level
           if (cancelRef.current) break;
-          await FileSystem.makeDirectoryAsync(`${TILE_BASE()}${z}/${x}/`, { intermediates: true });
+          await FileSystem.makeDirectoryAsync(`${TILE_BASE()}${z}/${x}/`, { intermediates: true }); // Ensure zoom/x directory exists before downloading tiles into it
 
-          for (let y = yMin; y <= yMax; y++) {
+          for (let y = yMin; y <= yMax; y++) { // For each tile coordinate, 
+          // check if the tile already exists in the cache (file system). If it does, skip downloading. 
+          // If not, download from the tile server and save to the file system. 
+          // Update progress after each tile.
             if (cancelRef.current) break;
 
             const path = tilePath(z, x, y);
@@ -288,18 +294,18 @@ const RegionDownloadScreen = ({ navigation }) => {
     });
   };
 
-  const handleCheckCache = async (region) => {
+  const handleCheckCache = async (region) => { //  checks how many tiles of a specefic region is downloaded. 
     checkCancelRef.current = { cancelled: false };
     setCheckingRegion(region.id);
     try {
       const result = await checkCachedTiles(region, checkCancelRef.current);
       if (!result) return;
       const { cached, total } = result;
-      const pct = total > 0 ? Math.round((cached / total) * 100) : 0;
+      const pct = total > 0 ? Math.round((cached / total) * 100) : 0; // Calculate percentage of tiles cached to provide feedback to the user about cache status. If total is 0 (shouldn't happen), show 0%.
       let status = '';
       if (cached === 0) status = '❌ No tiles found — try re-downloading';
-      else if (cached >= total * 0.95) status = '✅ Fully cached and ready for offline use';
-      else status = `⚠️ Partially cached — ${(total - cached).toLocaleString()} tiles missing`;
+      else if (cached >= total * 0.95) status = '✅ Fully cached and ready for offline use'; // If 95% or more tiles are cached, consider it fully cached
+      else status = `⚠️ Partially cached — ${(total - cached).toLocaleString()} tiles missing`; // If some tiles are missing, show how many are missing to inform the user that the region may not work well offline and they might want to re-download it.
 
       Alert.alert(
         `${region.name} — Cache Status`,
