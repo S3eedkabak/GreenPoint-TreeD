@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "test": "node src/__tests__/Add_tree_test.js",
     "test:csv": "node src/__tests__/CSV_import_export_test.mjs",
-    "bundle-map": "node scripts/bundle-map.js"
+    "test:height": "node src/__tests__/tree_height_formula_test.js"
   },
   "dependencies": {
     "@react-native-community/slider": "5.0.1",
