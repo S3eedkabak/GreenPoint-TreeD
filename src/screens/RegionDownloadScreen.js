@@ -223,7 +223,7 @@ const RegionDownloadScreen = ({ navigation }) => {
             if (!info.exists) {
               const url = TILE_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
               try {
-                await FileSystem.downloadAsync(url, path);
+                await FileSystem.downloadAsync(url, path); // This downloads the tile image from the tile server and saves it to the specified path in the file system.
               } catch {
                 failed++;
               }

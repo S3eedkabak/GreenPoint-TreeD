@@ -879,12 +879,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
     }
 
     // ── Message handler ────────────────────────────────────────────────────
-    const handleMessage = (event) => {
+    const handleMessage = (event) => { // handles messages from MapScreen.js
       try {
         const data = JSON.parse(event.data);
         switch (data.type) {
 
-          case 'setUserLocation':
+          case 'setUserLocation': // MapScreen sends user location updates (after permission granted)
             setUserLocation(data.latitude, data.longitude);
             break;
 

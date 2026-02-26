@@ -221,7 +221,7 @@ const MapScreen = ({ navigation, route }) => {
     try {
       // Get the current location with high accuracy (polling every 2s for demo purposes)
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.High, // OS will implement best possible accuracy strategy based on device capabilities and conditions.
       });
       updateLocation(location); // Update state with the new location
     } catch {
@@ -290,31 +290,31 @@ const MapScreen = ({ navigation, route }) => {
   };
 
   // ─── WebView message handler ──────────────────────────────────────────────
-  const handleWebViewMessage = (event) => {
+  const handleWebViewMessage = (event) => { // handle messages from the WebView
     try {
       const data = JSON.parse(event.nativeEvent.data);
 
       switch (data.type) {
-        case 'mapReady':
+        case 'mapReady': // initial message from WebView when its JS is ready to receive data
           // WebView is ready
           setMapReady(true);
           mapReadyRef.current = true;
 
           if (tileIndexRef.current) sendTileIndex(tileIndexRef.current);
           if (treesRef.current.length > 0) {
-            sendToMap('addTreeMarkers', {
+            sendToMap('addTreeMarkers', { // send trees to WebView so it can add markers, only send when map is ready.
               trees: treesRef.current,
               activeTreeId: getActiveTreeId(userLocationRef.current, treesRef.current),
             });
           }
           if (userLocationRef.current) {
-            sendToMap('setUserLocation', {
+            sendToMap('setUserLocation', { // send user location to WebView so it can show the blue dot, only send when map is ready.
               latitude: userLocationRef.current.latitude,
               longitude: userLocationRef.current.longitude,
             });
           }
           if (pendingGoTo.current) {
-            sendToMap('goToLocation', {
+            sendToMap('goToLocation', { 
               latitude: pendingGoTo.current.lat,
               longitude: pendingGoTo.current.lng,
               zoom: pendingGoTo.current.zoom,
@@ -323,7 +323,7 @@ const MapScreen = ({ navigation, route }) => {
           }
           break;
 
-        case 'mapPress':
+        case 'mapPress': 
           // User tapped on the map; update selected coordinates
           setSelectedCoords({ latitude: data.latitude, longitude: data.longitude });
           break;
