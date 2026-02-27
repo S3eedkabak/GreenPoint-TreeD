@@ -7,3 +7,5 @@ docker-compose.yml
 /ios/
 .DS_Store
 /android/
+
+ExampleData.csv

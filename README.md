@@ -1,6 +1,4 @@
-# GreenPoint TreeD
-
-GreenPoint TreeD is a mobile-first application for foresters and environmental professionals to collect, manage, and analyse tree inventory data in the field. It provides offline-capable data capture with local SQLite storage, OpenStreetMap-based map rendering, offline tile caching, context-aware GPS, and CSV import/export functionality.
+GreenPoint TreeD is a cross-platform mobile application for foresters and environmental professionals to collect, manage, and analyze tree inventory data in the field. The app is fully offline-capable, supports advanced map features, and provides a robust data management workflow.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
 ![React Native](https://img.shields.io/badge/React%20Native-0.81.5-blue.svg)
@@ -9,79 +7,57 @@ GreenPoint TreeD is a mobile-first application for foresters and environmental p
 
 ---
 
-## Important — Expo Go Will NOT Work
+## Important: Expo Go Will NOT Work
 
-This app uses `expo-dev-client` and native modules (SQLite, Location, FileSystem, Network) that are **not supported by Expo Go**. You must run it as a **development build** on an emulator or simulator.
-
-**For testing purposes, we strongly recommend using emulators/simulators:**
-- **iOS Simulator** (macOS only) — No Apple Developer account required
-- **Android Emulator** (Windows, macOS, Linux) — No Google Play account required
-
-Running on physical devices requires:
-- **iOS**: An Apple Developer account ($99/year)
-- **Android**: A physical device with USB debugging enabled (no paid account needed)
-
-> A virtualised list console warning appears on launch but can be safely ignored as it does not affect functionality.
+This app uses native modules (SQLite, Location, FileSystem, Network, custom WebView bridge) that **require a development build**. **Expo Go is not supported.**  
+You must run the app as a development build on an emulator/simulator or a physical device.
 
 ---
 
 ## Features
 
-- **Interactive Map Interface** - View and navigate tree locations using React Native Maps
-- **Add Tree Records** - Collect comprehensive tree data including species, height, DBH, crown measurements, and GPS coordinates
-- **Digital Tree Height Measurement** - Clinometer tool using device accelerometer to measure tree height via trigonometry (angle + distance)
-- **Digital Trunk Measurement (DBH)** - Credit card reference tool: take a photo of trunk at breast height with a credit card, tap to measure diameter and circumference
-- **Tree Details** - View detailed information about each recorded tree
-- **Offline Storage** - Local SQLite database for persistent offline data storage
-- **CSV Import/Export** - Import bulk tree data from CSV files with validation and error handling
-- **Data Validation** - Built-in validation for tree measurements and attributes
-- **Modern UI** - Clean, intuitive interface with custom navigation
-- **Interactive Map** — OpenStreetMap tiles rendered via Leaflet.js inside a WebView, works identically on iOS and Android with no proprietary SDK
-- **Add Tree Records** — Species dropdown, height slider, and optional measurements (DBH, crown height, crown radius, crown completeness, tags)
-- **Offline Map Caching** — Search and download map tile regions for offline use; two modes: Navigation (zoom 10–13) and Field Work (zoom 14–18)
-- **Context-Aware GPS** — Fused location (GPS + Wi-Fi + cell towers) when online; GPS-chip-only when offline; accuracy badge shown on map
-- **Tree Details** — View full data for any recorded tree
-- **Local SQLite Storage** — All data persists on-device with no internet required
-- **CSV Import/Export** — Bulk import from CSV with validation, export and share from the Settings screen
-- **CI/CD Pipeline** — Jenkins multibranch pipeline with Docker runs automated tests on every commit
+- **Interactive Map** — OpenStreetMap tiles rendered via Leaflet.js inside a WebView, with offline tile caching and seamless fallback to network when needed.
+- **Offline Map Caching** — Download and manage map regions for offline use (Navigation: zoom 10–13, Field Work: zoom 14–18).
+- **Tree Data Collection** — Add trees with species, height, DBH, crown, tags, and precise GPS coordinates.
+- **Digital Tree Height Measurement** — Built-in clinometer using device sensors for accurate height via angle + distance.
+- **Digital Trunk Measurement (DBH)** — Photo-based measurement using a credit card as reference.
+- **Tree Details & Editing** — View and update all tree data.
+- **CSV Import/Export** — Import and export tree data in CSV format, with validation and error handling.
+- **Local SQLite Storage** — All data is stored on-device, fully offline.
+- **Context-Aware GPS** — Uses fused location when online, GPS-only when offline, with accuracy badge.
+- **Modern UI** — Clean, intuitive interface with custom navigation.
+- **CI/CD Pipeline** — Jenkins multibranch pipeline with Docker for automated tests.
+- **Cross-Platform** — Works on Android and iOS, tested on Windows, macOS, and Fedora Linux.
 
 ---
 
 ## Tech Stack
 
-- **Framework:** React Native 0.81.4 with Expo 54.0.31
-- **Navigation:** React Navigation 7.1.28 (Stack Navigator)
-- **Maps:** React Native Maps 1.20.1
-- **Storage:** Expo SQLite 16.0.10
-- **Sensors:** Expo Sensors (clinometer for tree height)
-- **Location:** Expo Location 19.0.8
-- **File System:** Expo File System 19.0.21 (for CSV import)
-- **State Management:** React Hooks
-- **UI Components:** React Native Dropdown Picker, Slider, custom components
-- **Data Validation:** Custom Tree model with schema validation
-- **Version Control:** Git
-| Area | Library |
-|------|---------|
-| Framework | React Native 0.81.5 with Expo 54.0.31 |
-| Navigation | React Navigation 7 (Stack Navigator) |
-| Maps | Leaflet.js 1.9.4 over OpenStreetMap (WebView) |
-| Storage | Expo SQLite 16.0.10 |
-| Location | Expo Location 19.0.8 |
-| Networking | Expo Network 8.0.8 |
-| File System | Expo File System 19.0.21 |
-| UI Components | React Native Dropdown Picker, @react-native-community/slider |
-| CI/CD | Jenkins + Docker |
+| Area         | Library / Tooling                              |
+|--------------|------------------------------------------------|
+| Framework    | React Native 0.81.5 with Expo 54.0.31          |
+| Navigation   | React Navigation 7 (Stack Navigator)           |
+| Maps         | Leaflet.js 1.9.4 (WebView, OSM tiles)          |
+| Storage      | Expo SQLite 16.0.10                            |
+| Location     | Expo Location 19.0.8                           |
+| Networking   | Expo Network 8.0.8                             |
+| File System  | Expo File System 19.0.21                       |
+| UI           | React Native Dropdown Picker, @react-native-community/slider |
+| Sensors      | Expo Sensors                                   |
+| CI/CD        | Jenkins + Docker                               |
 
 ---
 
 ## Prerequisites
 
-Install the following before you begin:
-
 - **Node.js v20+** — [nodejs.org](https://nodejs.org/)
 - **Git** — [git-scm.com](https://git-scm.com/)
-- **Android Studio** (for Android emulator) — [developer.android.com/studio](https://developer.android.com/studio)
-- **Xcode** (for iOS simulator, macOS only) — Mac App Store
+- **Expo CLI** — `npm install -g expo-cli` (optional, `npx expo` works too)
+- **Java JDK 17+** (for Android builds)
+- **Python 3** (for some build tools)
+- **CocoaPods** (macOS/iOS only: `sudo gem install cocoapods`)
+- **Android Studio** (for Android emulator/device)
+- **Xcode** (macOS only, for iOS simulator/device)
 
 ---
 
@@ -104,15 +80,25 @@ npm install
 
 ## Running the App
 
-The app uses native modules that require a development build — **Expo Go will not work**. The steps below use `expo prebuild` to generate the native project locally, which does not require an Expo account or a paid developer account.
+> **Emulators/simulators are strongly recommended for development and testing.**  
+> Physical device setup is possible but requires extra steps (see below).
+
+### Quick Start Matrix
+
+| Platform         | Emulator/Simulator | Physical Device | Notes                                      |
+|------------------|-------------------|-----------------|---------------------------------------------|
+| Android (Win/Mac/Linux/Fedora) |  Recommended     |  Supported     | Emulator is fastest for dev                |
+| iOS (macOS only) |  Recommended     |  Supported     | Simulator is easiest, device needs Apple ID |
 
 ---
 
-### Option A — iOS Simulator (macOS only)
+### A. iOS (macOS only)
 
 #### Requirements
-- macOS with **Xcode** installed (Mac App Store)
-- Xcode Command Line Tools configured: Xcode → Settings → Locations → set Command Line Tools to your Xcode version
+
+- macOS with **Xcode** (install from Mac App Store)
+- Xcode Command Line Tools: Xcode → Settings → Locations → set Command Line Tools
+- **CocoaPods**: `sudo gem install cocoapods`
 
 #### Steps
 
@@ -120,156 +106,164 @@ The app uses native modules that require a development build — **Expo Go will 
 # 1. Install dependencies
 npm install
 
-# 2. Generate native iOS and Android folders
+# 2. Generate native iOS/Android folders
 npx expo prebuild --clean
 
-# 3. Run on iOS Simulator (opens Simulator automatically)
+# 3. Install iOS pods
+cd ios && pod install && cd ..
+
+# 4. Run on iOS Simulator (auto-launches Simulator)
 npx expo run:ios
 ```
 
-The Simulator will launch and the app will install and open automatically. On subsequent runs you can skip step 2 and just run step 3.
+- The app will build and open in the Simulator.
+- For subsequent runs, you can use `npx expo start --dev-client` and press `i` to launch the Simulator.
+
+##### To run on a physical iOS device:
+
+- You need an Apple Developer account (free for dev, paid for App Store).
+- Connect your device via USB.
+- In Xcode, select your device as the target and run the app.
+- You may need to trust your developer certificate on the device.
 
 ---
 
-### Option B — Android Emulator
+### B. Android (Windows, macOS, Fedora Linux)
 
 #### Requirements
-- **Android Studio** installed — [developer.android.com/studio](https://developer.android.com/studio)
-- At least one Android Virtual Device (AVD) created and running:
-  1. Open Android Studio
-  2. Go to **More Actions → Virtual Device Manager**
-  3. Create a device (e.g. Pixel 6, API 33 or higher)
-  4. Press the **play button** to start the emulator and wait until it fully boots to the home screen
 
-#### Steps
+- **Android Studio** — [developer.android.com/studio](https://developer.android.com/studio)
+- **Android SDK** (installed via Android Studio)
+- **Android Virtual Device (AVD)** (emulator)
+- **Java JDK 17+** (set JAVA_HOME if needed)
+
+#### Steps (Emulator)
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Generate native iOS and Android folders
-npx expo prebuild --clean
+# 2. Generate native folders
+npx expo prebuild --clean 
+#              (OR)
+npx expo prebuild --platform android
 
-# 3. Run on Android emulator (emulator must already be running)
+# 3. Start Android emulator:
+#    - Open Android Studio → More Actions → Virtual Device Manager
+#    - Create a device (e.g. Pixel 6, API 33+)
+#    - Start the emulator and wait for it to boot
+# NOTE: You need to set an environment Variable for the system if havent done already
+#        EX: ANDROID_HOME: C:\Users\_______\AppData\Local\Android\Sdk - That is the standard path, 
+
+# Note for Windows Graders: This project uses React Native's New Architecture. If you encounter "Path too long" errors, please ensure Long Paths are enabled in your Windows Registry or move the project folder closer to the drive root (e.g., C:\src\Project).
+
+# Windows Build Configuration (Required)
+# This project utilizes the React Native New Architecture, which involves a complex C++ compilation process via the Android NDK. This process generates deep directory structures that frequently exceed the legacy Windows 260-character path limit (MAX_PATH).
+
+# To ensure a successful build on Windows, please follow these requirements:
+
+# Project Location: The project must be located in a short directory path (e.g., C:\src\TreeD). Running the project from deep within folders like Desktop or Documents will cause the C++ linker to fail.
+
+# System Configuration: Ensure Long Paths are enabled in the Windows Registry. You can verify this by checking that LongPathsEnabled is set to 1 in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem.
+
+# Fresh Environment: If relocating the project, always delete the node_modules and android folders and run npm install from the new location to ensure all internal metadata and autolinking paths are correctly mapped to the new root.
+
+Execution: From the root of the project, run:
+# 4. Run on emulator
 npx expo run:android
 ```
+- It will take some time to initialize, configure and execute. Let it run. 
+- The app will build and install on the emulator automatically.
+- For subsequent runs, use `npx expo start --dev-client` and press `a` to launch the emulator, that will be much faster.
 
-The app will build and install on the emulator automatically.
+#### Steps (Physical Android Device)
+
+1. **Enable Developer Options** on your device:
+   - Go to Settings → About phone → Tap "Build number" 7 times.
+2. **Enable USB Debugging**:
+   - Settings → Developer options → Enable "USB debugging".
+3. **Connect device via USB**.
+4. **Authorize your computer** if prompted on the device.
+5. **Install ADB** (if not already):  
+   - Windows: Included with Android Studio  
+   - Fedora: `sudo dnf install android-tools`
+6. **Verify device is detected**:
+   ```bash
+   adb devices
+   ```
+   Should show your device as "device".
+
+7. **Run the app**:
+   ```bash
+   npx expo run:android
+   ```
+   The app will build and install on your device.
+
+##### Fedora 43 Notes
+
+- Install dependencies:
+  ```bash
+  sudo dnf install android-tools java-17-openjdk python3
+  ```
+- Android Studio: Download from [developer.android.com/studio](https://developer.android.com/studio)
+- Follow the same steps as above for emulator or device.
 
 ---
 
-### Subsequent Runs (after first build)
+### C. Subsequent Runs (All Platforms)
 
-Once the native folders exist and the app is installed on the emulator/simulator, you only need:
+Once the native folders are generated and the app is installed:
 
 ```bash
 npx expo start --dev-client --clear
 ```
 
-Then press **`i`** for iOS Simulator or **`a`** for Android emulator in the terminal.
+- Press `i` for iOS Simulator, `a` for Android emulator, or scan the QR code with your device (if using a dev client build).
 
 ---
 
-### Troubleshooting
+## Physical Device Setup (Summary)
 
-| Problem | Fix |
-|---------|-----|
-| `SDK location not found` | Open Android Studio → SDK Manager, copy the SDK path, then add `export ANDROID_HOME=<path>` to your shell profile |
-| `No emulator found` | Make sure the Android emulator is fully booted to the home screen before running `expo run:android` |
-| CocoaPods install fails | Run `sudo gem install cocoapods` then retry `npx expo prebuild --clean` |
-| App opens but map is blank | An internet connection is required for live map tiles. Use the offline maps button to download a region for offline use |
-| `command not found: expo` | Run `npm install` again, then use `npx expo` instead of `expo` |
+| Platform | Requirements | Steps |
+|----------|-------------|-------|
+| Android  | USB debugging, ADB, Android Studio | Enable dev mode, connect USB, run `npx expo run:android` |
+| iOS      | Apple Developer account, Xcode | Connect device, trust cert, run via Xcode or `npx expo run:ios` |
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `SDK location not found` | Set ANDROID_HOME, check Android Studio SDK Manager |
+| `No emulator found` | Start the emulator in Android Studio before running |
+| `CocoaPods install fails` | Run `sudo gem install cocoapods` |
+| App opens but map is blank | Requires internet for live tiles; use offline maps for field work |
+| `command not found: expo` | Use `npx expo` instead of `expo` |
+| Permission errors | Grant location, storage, and camera permissions in device settings |
 
 ---
 
 ## Testing
 
-### Automated Tests (CI/CD)
+### Automated Tests
 
-Both test files run automatically via **Jenkins** on every commit. Jenkins is configured as a multibranch pipeline — it tracks every branch and triggers a Docker build automatically. The pipeline builds the Docker image, runs both test files inside the container, and fails the build if any assertion breaks.
+- Run all tests:
+  ```bash
+  npm test
+  ```
+- CSV import/export test:
+  ```bash
+  node src/__tests__/CSV_import_export_test.mjs
+  ```
 
-To run the tests manually:
-
-```bash
-# Tree insertion and validation tests
-npm test
-
-# CSV import/export tests
-node src/__tests__/CSV_import_export_test.mjs
-```
-
-#### Add_tree_test.js
-
-Validates core tree data logic:
-- Unique UUID generation per tree
-- Required field validation (species, height, coordinates)
-- Rejection of invalid data (out-of-range coordinates, negative heights)
-- Optional field handling
-- Multiple tree creation with unique IDs
-
-#### CSV_import_export_test.mjs
-
-Tests the full CSV import/export flow using real CSV files:
-- Parsing valid CSV files
-- Database import and map-ready coordinate verification
-- Round-trip export consistency (export → re-import produces the same data)
-- Partial import where bad rows are skipped but valid rows pass through
-- Empty and header-only CSV edge cases
+- **Continuous Integration:**  
+  Automated tests are run on every commit using the included `Jenkinsfile` for CI/CD. Jenkins is configured to build, test, and report results automatically using Docker. It has a multi-branch configuration to ensure that every commit that gets pushed is tested automatically.
 
 ### Manual Testing
 
-Map rendering, offline tile caching, and GPS strategy require a physical device or emulator and cannot be fully automated. These were tested manually by toggling airplane mode and verifying the accuracy badge and tile fallback behaviour. Testing was limited to emulators due to device availability constraints.
-
----
-
-## Project Structure
-
-```
-GreenPoint-TreeD/
-├── App.js                                # Entry point, navigation setup, DB init
-├── app.json                              # Expo configuration
-├── eas.json                              # EAS Build profiles
-├── Jenkinsfile                           # CI/CD pipeline definition
-├── Dockerfile                            # Docker image for test runner
-├── package.json                          # Dependencies and test scripts
-│
-├── assets/
-│   └── leaflet-map.html                  # Leaflet map with CachedTileLayer and WebView bridge
-│
-├── src/
-│   ├── __tests__/
-│   │   ├── Add_tree_test.js              # Tree validation tests
-│   │   └── CSV_import_export_test.mjs   # CSV round-trip tests
-│   │
-│   ├── database/
-│   │   └── db.js                         # SQLite init, insert, query, CSV import/export
-│   │
-│   ├── models/
-│   │   └── Tree.js                       # Tree schema, validation, sanitisation
-│   │
-│   ├── screens/
-│   │   ├── MapScreen.js            # Main map interface
-│   │   ├── AddTreeScreen.js        # Add new tree form
-│   │   ├── TreeHeightMeasurementScreen.js  # Clinometer for measuring tree height
-│   │   ├── TreeTrunkMeasurementScreen.js   # Credit card reference for DBH/circumference
-│   │   ├── TreeDetailScreen.js     # Tree details view
-│   │   └── SettingsScreen.js       # App settings & CSV import
-│   │   ├── MapScreen.js                  # Main map (emulator/simulator version, polling)
-│   │   ├── MapScreenPROD.js              # Production map (watchPositionAsync)
-│   │   ├── AddTreeScreen.js              # Add tree form with dropdown and slider
-│   │   ├── TreeDetailScreen.js           # Tree detail view
-│   │   ├── SettingsScreen.js             # CSV export/import, tree count
-│   │   └── RegionDownloadScreen.js       # Offline tile download and management
-│   │
-│   └── utils/
-│       ├── csvParser.js                  # CSV parsing and validation
-│       ├── csvImportExamples.js          # Example CSV import flows
-│       └── testCSVParser.js             # Manual CSV parser test script
-│
-└── test-data/
-    ├── sample_trees.csv                  # Valid sample data
-    └── sample_trees_with_errors.csv      # Sample data with intentional errors
-```
+- Map, offline tiles, and GPS require emulator or device.
+- Test offline mode by toggling airplane mode and verifying map and data access.
 
 ---
 
