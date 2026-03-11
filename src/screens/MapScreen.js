@@ -146,7 +146,7 @@ const MapScreen = ({ navigation, route }) => {
       : Location.Accuracy.BestForNavigation;
 
     try {
-      locationWatchRef.current = await Location.watchPositionAsync(
+      locationWatchRef.current = await Location.watchPositionAsync( // watchposition async, GPS chip pushes updates continuously, we subscribe to them and update the map accordingly
         {
           accuracy,
           distanceInterval: 5,
@@ -452,7 +452,6 @@ const MapScreen = ({ navigation, route }) => {
       sendToMap('centerOnLocation', {
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
-        zoom: 13,
       });
     }
   };
