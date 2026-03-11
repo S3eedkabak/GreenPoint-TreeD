@@ -48,8 +48,7 @@
       ["expo-camera", {"cameraPermission": "This app needs camera access to measure tree trunk with a credit card reference."}],
       ["expo-image-picker", {"photosPermission": "This app needs photo library access to measure tree trunk from saved photos."}],
       ["expo-location", {"locationAlwaysAndWhenInUsePermission": "Allow TreeD to use your location to map trees."}],
-      "expo-sensors",
-      "expo-dev-client"
+      "expo-sensors"
     ],
     "extra": {
       "eas": {

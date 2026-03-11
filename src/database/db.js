@@ -43,6 +43,7 @@ export const initDatabase = async () => { // Initialize DB
       CREATE INDEX IF NOT EXISTS idx_trees_tree_id ON trees(tree_id);
       CREATE INDEX IF NOT EXISTS idx_trees_date ON trees(date);
       CREATE INDEX IF NOT EXISTS idx_trees_species ON trees(species);
+      CREATE INDEX IF NOT EXISTS idx_trees_coords ON trees(northing, easting);
     `);
     
     console.log('Local database initialized (data persists between restarts)');
@@ -118,6 +119,38 @@ export const getAllTrees = async (filters = {}) => { // retrieve all trees or wi
   }
 };
 
+// Returns a single integer — never loads rows into memory.
+export const getTreeCount = async () => {
+  try {
+    const database = await openDatabase();
+    const result = await database.getFirstAsync('SELECT COUNT(*) as count FROM trees');
+    return result ? result.count : 0;
+  } catch (error) {
+    console.error('Error getting tree count:', error);
+    throw error;
+  }
+};
+
+// Returns only trees whose northing/easting fall within the given bounding box.
+// Uses the idx_trees_coords composite index for fast range scans.
+export const getTreesInBounds = async (minLat, maxLat, minLng, maxLng) => {
+  try {
+    const database = await openDatabase();
+    const trees = await database.getAllAsync(
+      `SELECT * FROM trees
+       WHERE northing >= ? AND northing <= ?
+         AND easting  >= ? AND easting  <= ?
+       ORDER BY created_at DESC`,
+      [minLat, maxLat, minLng, maxLng]
+    );
+    console.log(`📱 Fetched ${trees.length} trees in bounds`);
+    return trees;
+  } catch (error) {
+    console.error('Error fetching trees in bounds:', error);
+    throw error;
+  }
+};
+
 // Helper function to escape CSV values (handles commas, quotes, newlines)
 const escapeCSV = (value) => {
   if (value === null || value === undefined) return '';
@@ -183,133 +216,154 @@ export const exportToCSV = async () => {
   }
 };
 
-export const importFromCSV = async (csvContent) => {
+// Batch size for transactional inserts. 500 rows per transaction balances
+// memory pressure against SQLite transaction overhead on mobile hardware.
+const IMPORT_BATCH_SIZE = 500;
+
+export const importFromCSV = async (csvContent, onProgress = null) => {
   try {
     const lines = csvContent.trim().split('\n');
-    
+
     if (lines.length < 2) {
       throw new Error('CSV file must have at least a header and one data row');
     }
 
-    // Parse header
+    // ── Header validation (unchanged logic) ──────────────────────────────────
     const header = lines[0].split(',').map(h => h.trim());
-    
-    // Expected header format (matching export)
+
     const expectedHeaders = [
-      'Tree ID', 'Date', 'Northing', 'Easting', 'Species', 
-      'DBH', 'Tree height', 'Crown height', 'Crown radius', 
-      'Crown completeness', 'Tags'
+      'Tree ID', 'Date', 'Northing', 'Easting', 'Species',
+      'DBH', 'Tree height', 'Crown height', 'Crown radius',
+      'Crown completeness', 'Tags',
     ];
-    
-    // Validate header (flexible - allow case-insensitive)
-    const headerLower = header.map(h => h.toLowerCase());
+
+    const headerLower   = header.map(h => h.toLowerCase());
     const expectedLower = expectedHeaders.map(h => h.toLowerCase());
-    
-    const isValidHeader = expectedLower.every((expected, index) => {
-      return headerLower[index] === expected || 
-             headerLower[index] === expected.replace(/\s+/g, '');
-    });
-    
+
+    const isValidHeader = expectedLower.every((expected, index) =>
+      headerLower[index] === expected ||
+      headerLower[index] === expected.replace(/\s+/g, '')
+    );
+
     if (!isValidHeader) {
       throw new Error('Invalid CSV format. Header does not match expected format.');
     }
 
-    const database = await openDatabase();
-    const importedTrees = [];
-    const errors = [];
-    
-    // Process each data row (skip header)
+    // ── Pre-pass: collect all data rows (skip header + blanks) ───────────────
+    // We build a lightweight array of raw line strings, not parsed objects,
+    // so we don't hold 1M parsed objects in memory simultaneously.
+    const dataLines = [];
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
-      if (!line) continue; // Skip empty lines
-      
-      try {
-        const values = parseCSVLine(line);
-        
-        // Map CSV columns to variables
-        const treeId = values[0]?.trim() || generateUUID();
-        const date = values[1]?.trim() || new Date().toISOString().split('T')[0];
-        const northing = parseFloat(values[2]?.trim());
-        const easting = parseFloat(values[3]?.trim());
-        const species = values[4]?.trim();
-        const dbh = values[5]?.trim() ? parseFloat(values[5].trim()) : null;
-        const treeHeight = parseFloat(values[6]?.trim());
-        const crownHeight = values[7]?.trim() ? parseFloat(values[7].trim()) : null;
-        const crownRadius = values[8]?.trim() ? parseFloat(values[8].trim()) : null;
-        const crownCompleteness = values[9]?.trim() ? parseFloat(values[9].trim()) : null;
-        const tags = values[10]?.trim() || null;
-        
-        // Validation
-        if (!species) {
-          throw new Error(`Row ${i + 1}: Species is required`);
-        }
-        
-        if (isNaN(northing) || isNaN(easting)) {
-          throw new Error(`Row ${i + 1}: Invalid coordinates`);
-        }
-        
-        if (isNaN(treeHeight) || treeHeight <= 0) {
-          throw new Error(`Row ${i + 1}: Tree height must be a positive number`);
-        }
-        
-        // Validate optional numeric fields
-        if (dbh !== null && (isNaN(dbh) || dbh < 0)) {
-          throw new Error(`Row ${i + 1}: Invalid DBH value`);
-        }
-        
-        if (crownHeight !== null && (isNaN(crownHeight) || crownHeight < 0)) {
-          throw new Error(`Row ${i + 1}: Invalid crown height value`);
-        }
-        
-        if (crownRadius !== null && (isNaN(crownRadius) || crownRadius < 0)) {
-          throw new Error(`Row ${i + 1}: Invalid crown radius value`);
-        }
-        
-        if (crownCompleteness !== null && (isNaN(crownCompleteness) || crownCompleteness < 0 || crownCompleteness > 1)) {
-          throw new Error(`Row ${i + 1}: Crown completeness must be between 0 and 1`);
-        }
-        
-        // Check if tree_id already exists
-        const existing = await database.getFirstAsync(
-          'SELECT tree_id FROM trees WHERE tree_id = ?',
-          [treeId]
-        );
-        
-        if (existing) {
-          errors.push(`Row ${i + 1}: Tree ID ${treeId} already exists (skipped)`);
-          continue;
-        }
-        
-        // Insert tree (removed synced column)
-        await database.runAsync(
-          `INSERT INTO trees (
-            tree_id, date, northing, easting, species, dbh,
-            tree_height, crown_height, crown_radius, crown_completeness, tags
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [treeId, date, northing, easting, species, dbh, treeHeight, 
-           crownHeight, crownRadius, crownCompleteness, tags]
-        );
-        
-        importedTrees.push({ treeId, species, row: i + 1 });
-        
-      } catch (error) {
-        errors.push(`Row ${i + 1}: ${error.message}`);
-      }
+      if (line) dataLines.push({ raw: line, lineIndex: i });
     }
-    
+
+    const total      = dataLines.length;
+    let imported     = 0;
+    let skipped      = 0;
+    const errors     = [];
+    const errorDetails = [];
+
+    const database = await openDatabase();
+
+    // ── Process in batches ───────────────────────────────────────────────────
+    for (let batchStart = 0; batchStart < total; batchStart += IMPORT_BATCH_SIZE) {
+      const batchEnd  = Math.min(batchStart + IMPORT_BATCH_SIZE, total);
+      const batch     = dataLines.slice(batchStart, batchEnd);
+
+      // Validate all rows in this batch before opening a transaction.
+      // Invalid rows are collected as errors and excluded from the insert.
+      const validRows = [];
+
+      for (const { raw, lineIndex } of batch) {
+        const rowNum = lineIndex + 1; // 1-based for user-facing messages
+        try {
+          const values = parseCSVLine(raw);
+
+          const treeId   = values[0]?.trim() || generateUUID();
+          const date     = values[1]?.trim() || new Date().toISOString().split('T')[0];
+          const northing = parseFloat(values[2]?.trim());
+          const easting  = parseFloat(values[3]?.trim());
+          const species  = values[4]?.trim();
+          const dbh      = values[5]?.trim() ? parseFloat(values[5].trim()) : null;
+          const treeHeight      = parseFloat(values[6]?.trim());
+          const crownHeight     = values[7]?.trim() ? parseFloat(values[7].trim()) : null;
+          const crownRadius     = values[8]?.trim() ? parseFloat(values[8].trim()) : null;
+          const crownCompleteness = values[9]?.trim() ? parseFloat(values[9].trim()) : null;
+          const tags     = values[10]?.trim() || null;
+
+          // ── Per-row validation (same rules as before) ──────────────────────
+          if (!species) throw new Error(`Row ${rowNum}: Species is required`);
+          if (isNaN(northing) || isNaN(easting)) throw new Error(`Row ${rowNum}: Invalid coordinates`);
+          if (isNaN(treeHeight) || treeHeight <= 0) throw new Error(`Row ${rowNum}: Tree height must be a positive number`);
+          if (dbh !== null && (isNaN(dbh) || dbh < 0)) throw new Error(`Row ${rowNum}: Invalid DBH value`);
+          if (crownHeight !== null && (isNaN(crownHeight) || crownHeight < 0)) throw new Error(`Row ${rowNum}: Invalid crown height value`);
+          if (crownRadius !== null && (isNaN(crownRadius) || crownRadius < 0)) throw new Error(`Row ${rowNum}: Invalid crown radius value`);
+          if (crownCompleteness !== null && (isNaN(crownCompleteness) || crownCompleteness < 0 || crownCompleteness > 1)) {
+            throw new Error(`Row ${rowNum}: Crown completeness must be between 0 and 1`);
+          }
+
+          validRows.push([treeId, date, northing, easting, species, dbh,
+            treeHeight, crownHeight, crownRadius, crownCompleteness, tags]);
+        } catch (err) {
+          errors.push(err.message);
+          errorDetails.push(err.message);
+        }
+      }
+
+      if (validRows.length === 0) {
+        // Nothing valid in this batch — skip the transaction entirely
+        const processed = batchEnd;
+        if (onProgress) onProgress({ processed, total, imported, skipped });
+        continue;
+      }
+
+      // ── Single transaction for the whole batch ───────────────────────────
+      // INSERT OR IGNORE lets SQLite silently skip any row whose tree_id
+      // already exists (UNIQUE constraint), eliminating the need for a
+      // SELECT-per-row duplicate check.
+      let batchImported = 0;
+      let batchSkipped  = 0;
+
+      await database.withTransactionAsync(async () => {
+        for (const row of validRows) {
+          const result = await database.runAsync(
+            `INSERT OR IGNORE INTO trees (
+              tree_id, date, northing, easting, species, dbh,
+              tree_height, crown_height, crown_radius, crown_completeness, tags
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            row
+          );
+          // runAsync returns { changes, lastInsertRowId }.
+          // changes === 0 means IGNORE fired (duplicate tree_id).
+          if (result.changes > 0) {
+            batchImported++;
+          } else {
+            batchSkipped++;
+          }
+        }
+      });
+
+      imported += batchImported;
+      skipped  += batchSkipped;
+
+      const processed = batchEnd;
+      if (onProgress) onProgress({ processed, total, imported, skipped });
+    }
+
     return {
       success: true,
-      imported: importedTrees.length,
-      total: lines.length - 1,
+      imported,
+      skipped,
+      total,
       errors: errors.length,
-      errorDetails: errors,
-      importedTrees
+      errorDetails,
     };
-    
+
   } catch (error) {
     console.error('Error importing CSV:', error);
     throw error;
   }
 };
 
-export default { initDatabase, insertTree, getAllTrees, exportToCSV, importFromCSV };
+export default { initDatabase, insertTree, getAllTrees, getTreeCount, getTreesInBounds, exportToCSV, importFromCSV };

@@ -10,6 +10,7 @@ import TreeHeightMeasurementScreen from './src/screens/TreeHeightMeasurementScre
 import TreeTrunkMeasurementScreen from './src/screens/TreeTrunkMeasurementScreen';
 import RegionDownloadScreen from './src/screens/RegionDownloadScreen';
 import { initDatabase } from './src/database/db';
+import { LanguageProvider } from './src/utils/useTranslation';
 
 const Stack = createStackNavigator();
 
@@ -34,71 +35,75 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="Map"
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: '#fff',
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 1,
-            borderBottomColor: '#00D9A5',
-          },
-          headerTintColor: '#00D9A5',
-          headerTitleStyle: {
-            fontWeight: '800',
-            fontSize: 20,
-          },
-        }}
-      >
-        <Stack.Screen
-          name="Map"
-          component={MapScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AddTree"
-          component={AddTreeScreen}
-          options={{ title: 'New Tree', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="MeasureHeight"
-          component={TreeHeightMeasurementScreen}
-          options={{ title: 'Measure Tree Height', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="MeasureTrunk"
-          component={TreeTrunkMeasurementScreen}
-          options={{ title: 'Measure Trunk (DBH)', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="TreeDetail"
-          component={TreeDetailScreen}
-          options={{ title: 'Tree Details', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{ title: 'Settings', headerBackTitle: 'Back' }}
-        />
-        {/*
-          detachPreviousScreen: false keeps MapScreen (and its WebView) fully
-          mounted and alive while RegionDownload is on top of the stack.
-          Without this, navigating back from RegionDownload causes the WebView
-          to remount and reload leaflet-map-bundled.html via the RN local HTTP
-          server — which iOS blocks when the device is offline (NSURLErrorDomain -1009).
-        */}
-        <Stack.Screen
-          name="RegionDownload"
-          component={RegionDownloadScreen}
-          options={{
-            title: 'Offline Maps',
-            headerBackTitle: 'Back',
-            detachPreviousScreen: false,
+    // LanguageProvider must wrap NavigationContainer so every screen
+    // has access to the same language context.
+    <LanguageProvider>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Map"
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: '#fff',
+              elevation: 0,
+              shadowOpacity: 0,
+              borderBottomWidth: 1,
+              borderBottomColor: '#00D9A5',
+            },
+            headerTintColor: '#00D9A5',
+            headerTitleStyle: {
+              fontWeight: '800',
+              fontSize: 20,
+            },
           }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+        >
+          <Stack.Screen
+            name="Map"
+            component={MapScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="AddTree"
+            component={AddTreeScreen}
+            options={{ title: 'New Tree', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="MeasureHeight"
+            component={TreeHeightMeasurementScreen}
+            options={{ title: 'Measure Tree Height', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="MeasureTrunk"
+            component={TreeTrunkMeasurementScreen}
+            options={{ title: 'Measure Trunk (DBH)', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="TreeDetail"
+            component={TreeDetailScreen}
+            options={{ title: 'Tree Details', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ title: 'Settings', headerBackTitle: 'Back' }}
+          />
+          {/*
+            detachPreviousScreen: false keeps MapScreen (and its WebView) fully
+            mounted and alive while RegionDownload is on top of the stack.
+            Without this, navigating back from RegionDownload causes the WebView
+            to remount and reload leaflet-map-bundled.html via the RN local HTTP
+            server — which iOS blocks when the device is offline (NSURLErrorDomain -1009).
+          */}
+          <Stack.Screen
+            name="RegionDownload"
+            component={RegionDownloadScreen}
+            options={{
+              title: 'Offline Maps',
+              headerBackTitle: 'Back',
+              detachPreviousScreen: false,
+            }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </LanguageProvider>
   );
 }

@@ -1,16 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '../utils/useTranslation';
 
 const lon2tile = (lon, zoom) => Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
 const lat2tile = (lat, zoom) => Math.floor(
@@ -21,40 +16,19 @@ const lat2tile = (lat, zoom) => Math.floor(
 const countTiles = (bbox, minZoom, maxZoom) => {
   let total = 0;
   for (let z = minZoom; z <= maxZoom; z++) {
-    const xMin = lon2tile(bbox.west, z);
-    const xMax = lon2tile(bbox.east, z);
-    const yMin = lat2tile(bbox.north, z);
-    const yMax = lat2tile(bbox.south, z);
-    total += (xMax - xMin + 1) * (yMax - yMin + 1);
+    total += (lon2tile(bbox.east, z) - lon2tile(bbox.west, z) + 1) *
+             (lat2tile(bbox.south, z) - lat2tile(bbox.north, z) + 1);
   }
   return total;
 };
 
 const MODES = {
-  navigation: {
-    id: 'navigation',
-    label: 'Navigation',
-    icon: 'navigate-outline',
-    description: 'Large areas for getting to the site. Good for regions, states, districts.',
-    minZoom: 10,
-    maxZoom: 13,
-    tileLimit: 50000,
-    color: '#00D9A5',
-  },
-  fieldwork: {
-    id: 'fieldwork',
-    label: 'Field Work',
-    icon: 'leaf-outline',
-    description: 'Small areas with high detail for precise tree marking on the ground.',
-    minZoom: 14,
-    maxZoom: 18,
-    tileLimit: 20000,
-    color: '#4CAF50',
-  },
+  navigation: { id: 'navigation', icon: 'navigate-outline', minZoom: 10, maxZoom: 13, tileLimit: 50000, color: '#00D9A5' },
+  fieldwork:  { id: 'fieldwork',  icon: 'leaf-outline',     minZoom: 14, maxZoom: 18, tileLimit: 20000, color: '#4CAF50' },
 };
 
 const geocodeRegion = async (query) => {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`; 
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`;
   const res = await fetch(url, { headers: { 'User-Agent': 'TreeDApp/1.0' } });
   const data = await res.json();
   return data.map(item => ({
@@ -62,47 +36,30 @@ const geocodeRegion = async (query) => {
     bbox: {
       south: parseFloat(item.boundingbox[0]),
       north: parseFloat(item.boundingbox[1]),
-      west: parseFloat(item.boundingbox[2]),
-      east: parseFloat(item.boundingbox[3]),
+      west:  parseFloat(item.boundingbox[2]),
+      east:  parseFloat(item.boundingbox[3]),
     },
   }));
 };
 
 const REGIONS_FILE = () => FileSystem.documentDirectory + 'downloaded_regions.json';
-const TILE_BASE = () => FileSystem.documentDirectory + 'tiles/';
+const TILE_BASE    = () => FileSystem.documentDirectory + 'tiles/';
 const tilePath = (z, x, y) => `${TILE_BASE()}${z}/${x}/${y}.png`;
 
-const loadRegions = async () => {
-  try {
-    const raw = await FileSystem.readAsStringAsync(REGIONS_FILE());
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-};
+const loadRegions  = async () => { try { return JSON.parse(await FileSystem.readAsStringAsync(REGIONS_FILE())); } catch { return []; } };
+const saveRegions  = async (r) => FileSystem.writeAsStringAsync(REGIONS_FILE(), JSON.stringify(r));
 
-const saveRegions = async (regions) => {
-  await FileSystem.writeAsStringAsync(REGIONS_FILE(), JSON.stringify(regions));
-};
-
-// Check cache: use getInfoAsync (still valid in legacy) to check existence without reading content
 const checkCachedTiles = async (region, cancelSignal) => {
   const { bbox, minZoom, maxZoom } = region;
-  let cached = 0;
-  let total = 0;
-  for (let z = minZoom; z <= maxZoom; z++) { 
-    const xMin = lon2tile(bbox.west, z); // Convert lat/lon to tile coordinates at this zoom level
-    const xMax = lon2tile(bbox.east, z); // This gives the range of tiles that cover the region's bounding box
-    const yMin = lat2tile(bbox.north, z);// Iterate over this tile range and check if each tile exists in the cache (file system)
-    const yMax = lat2tile(bbox.south, z);// Keep track of how many tiles are cached vs total to provide feedback to the user about cache status
+  let cached = 0, total = 0;
+  for (let z = minZoom; z <= maxZoom; z++) {
+    const xMin = lon2tile(bbox.west, z), xMax = lon2tile(bbox.east, z);
+    const yMin = lat2tile(bbox.north, z), yMax = lat2tile(bbox.south, z);
     for (let x = xMin; x <= xMax; x++) {
       for (let y = yMin; y <= yMax; y++) {
         if (cancelSignal?.cancelled) return null;
         total++;
-        try {
-          const info = await FileSystem.getInfoAsync(tilePath(z, x, y)); // This checks if the tile file exists without trying to read it, if file exist, add count
-          if (info.exists) cached++;
-        } catch { /* file doesn't exist */ }
+        try { const info = await FileSystem.getInfoAsync(tilePath(z, x, y)); if (info.exists) cached++; } catch {}
       }
     }
   }
@@ -112,126 +69,102 @@ const checkCachedTiles = async (region, cancelSignal) => {
 const TILE_URL = 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
 
 const RegionDownloadScreen = ({ navigation }) => {
-  const [selectedMode, setSelectedMode] = useState('navigation');
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  const { t } = useTranslation();
+
+  const [selectedMode, setSelectedMode]     = useState('navigation');
+  const [query, setQuery]                   = useState('');
+  const [results, setResults]               = useState([]);
+  const [searching, setSearching]           = useState(false);
   const [selectedRegion, setSelectedRegion] = useState(null);
-  const [tileCount, setTileCount] = useState(0);
-  const [downloading, setDownloading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressText, setProgressText] = useState('');
+  const [tileCount, setTileCount]           = useState(0);
+  const [downloading, setDownloading]       = useState(false);
+  const [progress, setProgress]             = useState(0);
+  const [progressText, setProgressText]     = useState('');
   const [downloadedRegions, setDownloadedRegions] = useState([]);
   const [checkingRegion, setCheckingRegion] = useState(null);
-  const cancelRef = useRef(false);
+  const cancelRef      = useRef(false);
   const checkCancelRef = useRef({ cancelled: false });
 
   const mode = MODES[selectedMode];
 
-  useEffect(() => {
-    loadRegions().then(setDownloadedRegions);
-  }, []);
+  // Derived translated labels — computed fresh every render so language changes apply
+  const modeLabels = {
+    navigation: { label: t('regionDownload.navigation'), desc: t('regionDownload.navigationDesc') },
+    fieldwork:  { label: t('regionDownload.fieldWork'),  desc: t('regionDownload.fieldWorkDesc') },
+  };
 
+  useEffect(() => { loadRegions().then(setDownloadedRegions); }, []);
   useEffect(() => {
-    if (selectedRegion) {
-      setTileCount(countTiles(selectedRegion.bbox, mode.minZoom, mode.maxZoom));
-    }
+    if (selectedRegion) setTileCount(countTiles(selectedRegion.bbox, mode.minZoom, mode.maxZoom));
   }, [selectedRegion, selectedMode]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
-    setSearching(true);
-    setResults([]);
-    setSelectedRegion(null);
+    setSearching(true); setResults([]); setSelectedRegion(null);
     try {
       const found = await geocodeRegion(query.trim());
-      if (found.length === 0) Alert.alert('Not Found', 'No results found. Try a different search term.');
+      if (!found.length) Alert.alert(t('regionDownload.notFound'), t('regionDownload.notFoundBody'));
       setResults(found);
     } catch {
-      Alert.alert('Error', 'Could not search. Check your internet connection.'); // requires internet
-    } finally {
-      setSearching(false);
-    }
+      Alert.alert(t('regionDownload.searchError'), t('regionDownload.searchErrorBody'));
+    } finally { setSearching(false); }
   };
 
-  const handleSelectResult = (item) => {
-    setSelectedRegion(item);
-    setResults([]);
-    setQuery(item.name.split(',')[0]);
-  };
-
+  const handleSelectResult = (item) => { setSelectedRegion(item); setResults([]); setQuery(item.name.split(',')[0]); };
   const estimateMB = (count) => ((count * 15) / 1024).toFixed(1);
 
   const handleDownload = async () => {
     if (!selectedRegion) return;
-    if (tileCount > mode.tileLimit) { // set limit to avoid Huge downloads that can fill up the device or take too long
+    if (tileCount > mode.tileLimit) {
       Alert.alert(
-        'Region Too Large',
+        t('regionDownload.downloadRegion'),
         selectedMode === 'navigation'
-          ? `${tileCount.toLocaleString()} tiles is too large for Navigation mode. Try a smaller region.`
-          : `${tileCount.toLocaleString()} tiles is too large for Field Work mode. Field Work is designed for small areas like a single forest block. Try zooming into a specific location.`
+          ? t('regionDownload.tooLargeNav')(tileCount)
+          : t('regionDownload.tooLargeField')(tileCount)
       );
       return;
     }
     Alert.alert(
-      'Download Region',
-      `Download "${selectedRegion.name.split(',')[0]}" (${mode.label})?\n\nZoom: ${mode.minZoom}–${mode.maxZoom}\nTiles: ~${tileCount.toLocaleString()}\nSize: ~${estimateMB(tileCount)} MB`,
+      t('regionDownload.downloadRegion'),
+      t('regionDownload.downloadConfirm')(
+        selectedRegion.name.split(',')[0],
+        modeLabels[selectedMode].label,
+        mode.minZoom, mode.maxZoom, tileCount, estimateMB(tileCount)
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Download', onPress: startDownload },
+        { text: t('regionDownload.cancelBtn'), style: 'cancel' },
+        { text: t('regionDownload.download'), onPress: startDownload },
       ]
     );
   };
 
-  const startDownload = async () => { 
-  // This function handles the actual downloading of tiles. It iterates through the required zoom levels and tile coordinates, 
-  // checks if each tile already exists in the cache, and if not, downloads it from the tile server. 
-  // It also updates progress state to provide feedback to the user and handles cancellation.
-    setDownloading(true);
-    setProgress(0);
-    cancelRef.current = false;
-
+  const startDownload = async () => {
+    setDownloading(true); setProgress(0); cancelRef.current = false;
     const { bbox } = selectedRegion;
     const { minZoom, maxZoom } = mode;
-    let downloaded = 0;
-    let failed = 0;
+    let downloaded = 0, failed = 0;
     const total = tileCount;
 
     try {
-      await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true }); // Ensure base tile directory exists
-
+      await FileSystem.makeDirectoryAsync(TILE_BASE(), { intermediates: true });
       for (let z = minZoom; z <= maxZoom; z++) {
-        if (cancelRef.current) break; //  if cancel, stop
-
-        const xMin = lon2tile(bbox.west, z);
-        const xMax = lon2tile(bbox.east, z);
-        const yMin = lat2tile(bbox.north, z);
-        const yMax = lat2tile(bbox.south, z);
-
-        for (let x = xMin; x <= xMax; x++) { // Iterate through the tile coordinates that cover the selected region at this zoom level
+        if (cancelRef.current) break;
+        const xMin = lon2tile(bbox.west, z), xMax = lon2tile(bbox.east, z);
+        const yMin = lat2tile(bbox.north, z), yMax = lat2tile(bbox.south, z);
+        for (let x = xMin; x <= xMax; x++) {
           if (cancelRef.current) break;
-          await FileSystem.makeDirectoryAsync(`${TILE_BASE()}${z}/${x}/`, { intermediates: true }); // Ensure zoom/x directory exists before downloading tiles into it
-
-          for (let y = yMin; y <= yMax; y++) { // For each tile coordinate, 
-          // check if the tile already exists in the cache (file system). If it does, skip downloading. 
-          // If not, download from the tile server and save to the file system. 
-          // Update progress after each tile.
+          await FileSystem.makeDirectoryAsync(`${TILE_BASE()}${z}/${x}/`, { intermediates: true });
+          for (let y = yMin; y <= yMax; y++) {
             if (cancelRef.current) break;
-
             const path = tilePath(z, x, y);
             const info = await FileSystem.getInfoAsync(path);
             if (!info.exists) {
-              const url = TILE_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
-              try {
-                await FileSystem.downloadAsync(url, path); // This downloads the tile image from the tile server and saves it to the specified path in the file system.
-              } catch {
-                failed++;
-              }
+              try { await FileSystem.downloadAsync(TILE_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y), path); }
+              catch { failed++; }
             }
-
             downloaded++;
             setProgress(Math.round((downloaded / total) * 100));
-            setProgressText(`Zoom ${z} — ${downloaded}/${total} tiles`);
+            setProgressText(`${t('regionDownload.zoom')(z, '')} — ${downloaded}/${total}`);
           }
         }
       }
@@ -242,15 +175,13 @@ const RegionDownloadScreen = ({ navigation }) => {
           name: selectedRegion.name.split(',')[0],
           fullName: selectedRegion.name,
           bbox: selectedRegion.bbox,
-          minZoom,
-          maxZoom,
+          minZoom, maxZoom,
           mode: mode.id,
-          modeLabel: mode.label,
+          modeLabel: modeLabels[selectedMode].label,
           tileCount: downloaded,
           downloadedAt: new Date().toISOString(),
           sizeMB: estimateMB(downloaded),
         };
-
         const existing = await loadRegions();
         const updated = [
           ...existing.filter(r => !(r.name === regionData.name && r.mode === regionData.mode)),
@@ -258,88 +189,69 @@ const RegionDownloadScreen = ({ navigation }) => {
         ];
         await saveRegions(updated);
         setDownloadedRegions(updated);
-
         Alert.alert(
-          'Download Complete',
-          `${regionData.name} (${mode.label}) downloaded!\n${downloaded.toLocaleString()} tiles, ~${regionData.sizeMB} MB${failed > 0 ? `\n(${failed} tiles failed)` : ''}`,
-          [{ text: 'OK' }]
+          t('regionDownload.downloadComplete'),
+          t('regionDownload.downloadCompleteBody')(
+            regionData.name, modeLabels[selectedMode].label,
+            downloaded, regionData.sizeMB, failed
+          ),
+          [{ text: t('common.ok') }]
         );
       }
     } catch (e) {
-      Alert.alert('Download Failed', e.message);
+      Alert.alert(t('regionDownload.downloadFailed'), e.message);
     } finally {
-      setDownloading(false);
-      setProgress(0);
-      setProgressText('');
+      setDownloading(false); setProgress(0); setProgressText('');
     }
   };
 
-  const handleCancel = () => {
-    cancelRef.current = true;
-    setDownloading(false);
-    setProgressText('Cancelling...');
-  };
+  const handleCancel = () => { cancelRef.current = true; setDownloading(false); setProgressText(t('regionDownload.cancelling')); };
 
-  // Navigate to Map screen centered on this region.
-  // Pass coordinates as navigation params — MapScreen reads them on focus.
   const handleViewOnMap = (region) => {
-    const centerLat = (region.bbox.north + region.bbox.south) / 2;
-    const centerLng = (region.bbox.east + region.bbox.west) / 2;
-    // Use minZoom+1 to land exactly in the cached tile range
-    const zoom = region.minZoom + 1;
     navigation.navigate('Map', {
-      goToLat: centerLat,
-      goToLng: centerLng,
-      goToZoom: zoom,
+      goToLat: (region.bbox.north + region.bbox.south) / 2,
+      goToLng: (region.bbox.east  + region.bbox.west)  / 2,
+      goToZoom: region.minZoom + 1,
     });
   };
 
-  const handleCheckCache = async (region) => { //  checks how many tiles of a specefic region is downloaded. 
+  const handleCheckCache = async (region) => {
     checkCancelRef.current = { cancelled: false };
     setCheckingRegion(region.id);
     try {
       const result = await checkCachedTiles(region, checkCancelRef.current);
       if (!result) return;
       const { cached, total } = result;
-      const pct = total > 0 ? Math.round((cached / total) * 100) : 0; // Calculate percentage of tiles cached to provide feedback to the user about cache status. If total is 0 (shouldn't happen), show 0%.
-      let status = '';
-      if (cached === 0) status = '❌ No tiles found — try re-downloading';
-      else if (cached >= total * 0.95) status = '✅ Fully cached and ready for offline use'; // If 95% or more tiles are cached, consider it fully cached
-      else status = `⚠️ Partially cached — ${(total - cached).toLocaleString()} tiles missing`; // If some tiles are missing, show how many are missing to inform the user that the region may not work well offline and they might want to re-download it.
-
+      const pct = total > 0 ? Math.round((cached / total) * 100) : 0;
+      const status = cached === 0
+        ? t('regionDownload.cacheNone')
+        : cached >= total * 0.95
+          ? t('regionDownload.cacheFull')
+          : t('regionDownload.cachePartial')(total - cached);
       Alert.alert(
-        `${region.name} — Cache Status`,
-        `${cached.toLocaleString()} of ${total.toLocaleString()} tiles cached (${pct}%)\n\n${status}`
+        t('regionDownload.cacheStatus')(region.name),
+        `${t('regionDownload.cacheBody')(cached, total, pct)}\n\n${status}`
       );
     } catch (e) {
-      Alert.alert('Error', 'Could not check cache: ' + e.message);
-    } finally {
-      setCheckingRegion(null);
-    }
+      Alert.alert(t('regionDownload.cacheError'), t('regionDownload.cacheErrorBody')(e.message));
+    } finally { setCheckingRegion(null); }
   };
 
   const handleDeleteRegion = (region) => {
     Alert.alert(
-      'Delete Region',
-      `Delete cached tiles for "${region.name}" (${region.modeLabel || 'Navigation'})?`,
+      t('regionDownload.deleteRegion'),
+      t('regionDownload.deleteConfirm')(region.name, region.modeLabel || t('regionDownload.navigation')),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('regionDownload.cancelBtn'), style: 'cancel' },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: t('regionDownload.delete'), style: 'destructive',
           onPress: async () => {
             try {
               const { bbox, minZoom, maxZoom } = region;
               for (let z = minZoom; z <= maxZoom; z++) {
-                const xMin = lon2tile(bbox.west, z);
-                const xMax = lon2tile(bbox.east, z);
-                const yMin = lat2tile(bbox.north, z);
-                const yMax = lat2tile(bbox.south, z);
-                for (let x = xMin; x <= xMax; x++) {
-                  for (let y = yMin; y <= yMax; y++) {
-                    try {
-                      await FileSystem.deleteAsync(tilePath(z, x, y), { idempotent: true });
-                    } catch { /* already gone */ }
+                for (let x = lon2tile(bbox.west, z); x <= lon2tile(bbox.east, z); x++) {
+                  for (let y = lat2tile(bbox.north, z); y <= lat2tile(bbox.south, z); y++) {
+                    try { await FileSystem.deleteAsync(tilePath(z, x, y), { idempotent: true }); } catch {}
                   }
                 }
               }
@@ -348,7 +260,7 @@ const RegionDownloadScreen = ({ navigation }) => {
               setDownloadedRegions(updated);
               navigation.navigate('Map');
             } catch {
-              Alert.alert('Error', 'Could not delete all tiles.');
+              Alert.alert(t('regionDownload.deleteError'), t('regionDownload.deleteErrorBody'));
             }
           },
         },
@@ -361,7 +273,7 @@ const RegionDownloadScreen = ({ navigation }) => {
 
       {/* Mode selector */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Download Mode</Text>
+        <Text style={styles.sectionTitle}>{t('regionDownload.downloadMode')}</Text>
         <View style={styles.modeRow}>
           {Object.values(MODES).map(m => (
             <TouchableOpacity
@@ -370,9 +282,9 @@ const RegionDownloadScreen = ({ navigation }) => {
               onPress={() => { setSelectedMode(m.id); setSelectedRegion(null); setResults([]); setQuery(''); }}
             >
               <Ionicons name={m.icon} size={24} color={selectedMode === m.id ? m.color : '#999'} />
-              <Text style={[styles.modeLabel, selectedMode === m.id && { color: m.color }]}>{m.label}</Text>
-              <Text style={styles.modeZoom}>Zoom {m.minZoom}–{m.maxZoom}</Text>
-              <Text style={styles.modeDesc}>{m.description}</Text>
+              <Text style={[styles.modeLabel, selectedMode === m.id && { color: m.color }]}>{modeLabels[m.id].label}</Text>
+              <Text style={styles.modeZoom}>{t('regionDownload.zoom')(m.minZoom, m.maxZoom)}</Text>
+              <Text style={styles.modeDesc}>{modeLabels[m.id].desc}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -380,16 +292,14 @@ const RegionDownloadScreen = ({ navigation }) => {
 
       {/* Search */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Search Region</Text>
+        <Text style={styles.sectionTitle}>{t('regionDownload.searchRegion')}</Text>
         <Text style={styles.sectionSubtitle}>
-          {selectedMode === 'navigation'
-            ? 'Search for a region, state, or district to download for navigation.'
-            : 'Search for a specific forest, village, or small area for precise field work.'}
+          {selectedMode === 'navigation' ? t('regionDownload.searchNavSubtitle') : t('regionDownload.searchFieldSubtitle')}
         </Text>
         <View style={styles.searchRow}>
           <TextInput
             style={styles.input}
-            placeholder={selectedMode === 'navigation' ? 'e.g. Saxony, Bavaria, Leipzig...' : 'e.g. Tharandter Wald, Grunewald...'}
+            placeholder={selectedMode === 'navigation' ? t('regionDownload.searchNavPlaceholder') : t('regionDownload.searchFieldPlaceholder')}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSearch}
@@ -397,16 +307,14 @@ const RegionDownloadScreen = ({ navigation }) => {
             placeholderTextColor="#999"
           />
           <TouchableOpacity style={[styles.searchBtn, { backgroundColor: mode.color }]} onPress={handleSearch} disabled={searching}>
-            {searching
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Ionicons name="search" size={20} color="#fff" />}
+            {searching ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="search" size={20} color="#fff" />}
           </TouchableOpacity>
         </View>
 
         {results.length > 0 && (
           <View style={styles.resultsList}>
-            {results.map((item, index) => (
-              <TouchableOpacity key={index} style={styles.resultItem} onPress={() => handleSelectResult(item)}>
+            {results.map((item, i) => (
+              <TouchableOpacity key={i} style={styles.resultItem} onPress={() => handleSelectResult(item)}>
                 <Ionicons name="location-outline" size={18} color={mode.color} />
                 <Text style={styles.resultText} numberOfLines={2}>{item.name}</Text>
               </TouchableOpacity>
@@ -418,35 +326,24 @@ const RegionDownloadScreen = ({ navigation }) => {
       {/* Selected region */}
       {selectedRegion && !downloading && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Selected Region</Text>
+          <Text style={styles.sectionTitle}>{t('regionDownload.selectedRegion')}</Text>
           <View style={styles.regionCard}>
             <View style={[styles.modeBadge, { backgroundColor: mode.color + '20' }]}>
               <Ionicons name={mode.icon} size={14} color={mode.color} />
-              <Text style={[styles.modeBadgeText, { color: mode.color }]}>{mode.label}</Text>
+              <Text style={[styles.modeBadgeText, { color: mode.color }]}>{modeLabels[selectedMode].label}</Text>
             </View>
             <Text style={styles.regionName}>{selectedRegion.name.split(',')[0]}</Text>
             <Text style={styles.regionMeta} numberOfLines={2}>{selectedRegion.name}</Text>
             <View style={styles.regionStats}>
-              <View style={styles.stat}>
-                <Ionicons name="layers-outline" size={16} color="#666" />
-                <Text style={styles.statText}>Zoom {mode.minZoom}–{mode.maxZoom}</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="grid-outline" size={16} color="#666" />
-                <Text style={styles.statText}>{tileCount.toLocaleString()} tiles</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="save-outline" size={16} color="#666" />
-                <Text style={styles.statText}>~{estimateMB(tileCount)} MB</Text>
-              </View>
+              <View style={styles.stat}><Ionicons name="layers-outline" size={16} color="#666" /><Text style={styles.statText}>{t('regionDownload.zoom')(mode.minZoom, mode.maxZoom)}</Text></View>
+              <View style={styles.stat}><Ionicons name="grid-outline" size={16} color="#666" /><Text style={styles.statText}>{t('regionDownload.tiles')(tileCount)}</Text></View>
+              <View style={styles.stat}><Ionicons name="save-outline" size={16} color="#666" /><Text style={styles.statText}>{t('regionDownload.estimatedSize')(estimateMB(tileCount))}</Text></View>
             </View>
             {tileCount > mode.tileLimit && (
               <View style={styles.warningBox}>
                 <Ionicons name="warning-outline" size={16} color="#FF6B6B" />
                 <Text style={styles.warningText}>
-                  {selectedMode === 'fieldwork'
-                    ? 'Area too large for Field Work. Try a smaller forest block.'
-                    : 'Region too large. Try a smaller region.'}
+                  {selectedMode === 'fieldwork' ? t('regionDownload.tooLargeFieldShort') : t('regionDownload.tooLargeNavShort')}
                 </Text>
               </View>
             )}
@@ -456,16 +353,16 @@ const RegionDownloadScreen = ({ navigation }) => {
               disabled={tileCount > mode.tileLimit}
             >
               <Ionicons name="cloud-download-outline" size={20} color="#fff" />
-              <Text style={styles.downloadBtnText}>Download for Offline Use</Text>
+              <Text style={styles.downloadBtnText}>{t('regionDownload.downloadForOffline')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* Download progress */}
+      {/* Progress */}
       {downloading && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Downloading...</Text>
+          <Text style={styles.sectionTitle}>{t('regionDownload.downloading')}</Text>
           <View style={styles.progressCard}>
             <View style={styles.progressBarBg}>
               <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: mode.color }]} />
@@ -473,7 +370,7 @@ const RegionDownloadScreen = ({ navigation }) => {
             <Text style={[styles.progressPct, { color: mode.color }]}>{progress}%</Text>
             <Text style={styles.progressDetail}>{progressText}</Text>
             <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
+              <Text style={styles.cancelBtnText}>{t('regionDownload.cancelBtn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -481,58 +378,43 @@ const RegionDownloadScreen = ({ navigation }) => {
 
       {/* Downloaded regions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Downloaded Regions</Text>
+        <Text style={styles.sectionTitle}>{t('regionDownload.downloadedRegions')}</Text>
         {downloadedRegions.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="map-outline" size={40} color="#ccc" />
-            <Text style={styles.emptyText}>No regions downloaded yet</Text>
-            <Text style={styles.emptySubtext}>Search for a region above to download it</Text>
+            <Text style={styles.emptyText}>{t('regionDownload.noRegions')}</Text>
+            <Text style={styles.emptySubtext}>{t('regionDownload.noRegionsSubtitle')}</Text>
           </View>
         ) : (
           downloadedRegions.map((region) => {
             const regionMode = MODES[region.mode] || MODES.navigation;
+            const regionModeLabel = modeLabels[region.mode]?.label || region.modeLabel || t('regionDownload.navigation');
             return (
               <View key={region.id} style={styles.downloadedCard}>
                 <View style={styles.downloadedInfo}>
                   <View style={styles.downloadedHeader}>
                     <Text style={styles.downloadedName}>{region.name}</Text>
                     <View style={[styles.modeBadgeSmall, { backgroundColor: regionMode.color + '20' }]}>
-                      <Text style={[styles.modeBadgeSmallText, { color: regionMode.color }]}>{region.modeLabel || 'Navigation'}</Text>
+                      <Text style={[styles.modeBadgeSmallText, { color: regionMode.color }]}>{regionModeLabel}</Text>
                     </View>
                   </View>
                   <Text style={styles.downloadedMeta}>
-                    Zoom {region.minZoom}–{region.maxZoom} · {region.tileCount?.toLocaleString()} tiles · {region.sizeMB} MB
+                    {t('regionDownload.zoom')(region.minZoom, region.maxZoom)} · {region.tileCount?.toLocaleString()} · {region.sizeMB} MB
                   </Text>
-                  <Text style={styles.downloadedDate}>
-                    {new Date(region.downloadedAt).toLocaleDateString()}
-                  </Text>
+                  <Text style={styles.downloadedDate}>{new Date(region.downloadedAt).toLocaleDateString()}</Text>
                 </View>
                 <View style={styles.downloadedActions}>
-                  {/* Blue map button — goes to the downloaded region */}
-                  <TouchableOpacity
-                    style={styles.viewBtn}
-                    onPress={() => handleViewOnMap(region)}
-                  >
+                  <TouchableOpacity style={styles.viewBtn} onPress={() => handleViewOnMap(region)}>
                     <Ionicons name="map-outline" size={22} color="#4A90E2" />
                   </TouchableOpacity>
-                  {/* Green check button — verifies tiles on disk */}
-                  <TouchableOpacity
-                    style={styles.checkBtn}
-                    onPress={() => {
-                      if (checkingRegion === region.id) {
-                        checkCancelRef.current.cancelled = true;
-                        setCheckingRegion(null);
-                      } else {
-                        handleCheckCache(region);
-                      }
-                    }}
-                  >
+                  <TouchableOpacity style={styles.checkBtn} onPress={() => {
+                    if (checkingRegion === region.id) { checkCancelRef.current.cancelled = true; setCheckingRegion(null); }
+                    else handleCheckCache(region);
+                  }}>
                     {checkingRegion === region.id
                       ? <ActivityIndicator size="small" color="#00D9A5" />
-                      : <Ionicons name="checkmark-circle-outline" size={22} color="#00D9A5" />
-                    }
+                      : <Ionicons name="checkmark-circle-outline" size={22} color="#00D9A5" />}
                   </TouchableOpacity>
-                  {/* Red trash button — deletes all tiles */}
                   <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteRegion(region)}>
                     <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
                   </TouchableOpacity>
