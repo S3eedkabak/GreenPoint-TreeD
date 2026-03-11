@@ -957,6 +957,19 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     map.on('zoomend', () => sendMessage({ type: 'zoomLevel', zoom: map.getZoom() }));
 
+    map.on('moveend', function () {
+      var b = map.getBounds();
+      sendMessage({
+        type: 'boundsChanged',
+        bounds: {
+          minLat: b.getSouth(),
+          maxLat: b.getNorth(),
+          minLng: b.getWest(),
+          maxLng: b.getEast(),
+        }
+      });
+    });
+
     // Signal React Native that Leaflet is ready
     sendMessage({ type: 'mapReady' });
   </script>
