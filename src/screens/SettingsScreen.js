@@ -14,7 +14,6 @@ const SettingsScreen = ({ navigation }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  // importProgress: null when idle, { processed, total } while importing
   const [importProgress, setImportProgress] = useState(null);
 
   useEffect(() => {
@@ -23,10 +22,8 @@ const SettingsScreen = ({ navigation }) => {
 
   const loadTreeCount = async () => {
     try {
-      // Use COUNT(*) query — never loads rows into memory
       const count = await getTreeCount();
       setTreeCount(count);
-      // Unsynced count only needed when cloud sync is enabled
       if (process.env.EXPO_PUBLIC_ENABLE_CLOUD_SYNC === 'true') {
         const trees = await getAllTrees();
         setUnsyncedCount(trees.filter(tr => tr.synced === 0).length);
@@ -95,7 +92,6 @@ const SettingsScreen = ({ navigation }) => {
       const csvContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' });
 
       const importResult = await importFromCSV(csvContent, ({ processed, total }) => {
-        // Called after every batch of 500 rows — drives the progress bar
         setImportProgress({ processed, total });
       });
 
@@ -118,7 +114,7 @@ const SettingsScreen = ({ navigation }) => {
       Alert.alert(t('settings.importFailed'), t('settings.importError')(error.message));
     } finally {
       setIsImporting(false);
-      setImportProgress(null); // clear the progress bar when done
+      setImportProgress(null);
     }
   };
 
@@ -156,6 +152,7 @@ const SettingsScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+
       {/* Stats Card */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
@@ -170,6 +167,60 @@ const SettingsScreen = ({ navigation }) => {
         <View style={styles.offlineNotice}>
           <Ionicons name="airplane" size={20} color="#00D9A5" />
           <Text style={styles.offlineText}>{t('settings.offlineNotice')}</Text>
+        </View>
+      )}
+
+      {/* ── Import CTA Card ─────────────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={[styles.importCard, isImporting && styles.importCardDisabled]}
+        onPress={handleImportCSV}
+        activeOpacity={0.85}
+        disabled={isImporting}
+      >
+        <View style={styles.importCardLeft}>
+          <View style={styles.importIconCircle}>
+            {isImporting
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Ionicons name="cloud-upload-outline" size={28} color="#fff" />
+            }
+          </View>
+          <View style={styles.importCardText}>
+            <Text style={styles.importCardTitle}>
+              {isImporting ? t('settings.importImporting') : t('settings.importCSV')}
+            </Text>
+            <Text style={styles.importCardSubtitle}>
+              {t('settings.importSubtitle')}
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.7)" />
+      </TouchableOpacity>
+
+      {/* Import progress bar */}
+      {importProgress !== null && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressText}>
+              {importProgress.processed} / {importProgress.total} rows
+            </Text>
+            <Text style={styles.progressPct}>
+              {importProgress.total > 0
+                ? `${Math.round((importProgress.processed / importProgress.total) * 100)}%`
+                : '0%'}
+            </Text>
+          </View>
+          <View style={styles.progressBarBg}>
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: importProgress.total > 0
+                    ? `${Math.round((importProgress.processed / importProgress.total) * 100)}%`
+                    : '0%',
+                },
+              ]}
+            />
+          </View>
         </View>
       )}
 
@@ -205,34 +256,12 @@ const SettingsScreen = ({ navigation }) => {
           color="#FF6B6B"
           disabled={isImporting}
         />
-
-        {/* Import progress bar — visible only while an import is running */}
-        {importProgress !== null && (
-          <View style={styles.progressContainer}>
-            <Text style={styles.progressText}>
-              Importing... {importProgress.processed} / {importProgress.total} rows
-            </Text>
-            <View style={styles.progressBarBg}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: importProgress.total > 0
-                      ? `${Math.round((importProgress.processed / importProgress.total) * 100)}%`
-                      : '0%',
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        )}
       </View>
 
       {/* App Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('settings.application')}</Text>
 
-        {/* Language toggle */}
         <MenuItem
           icon="language-outline"
           title={t('settings.language')}
@@ -271,14 +300,67 @@ const SettingsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   content: { padding: 20 },
+
+  // Stats
   statsContainer: { marginBottom: 20 },
   statCard: { backgroundColor: 'rgba(0, 217, 165, 0.08)', borderRadius: 20, padding: 30, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0, 217, 165, 0.2)' },
   statNumber: { fontSize: 48, fontWeight: '800', color: '#00D9A5', marginTop: 12 },
   statLabel: { fontSize: 16, color: '#888', marginTop: 8, fontWeight: '600' },
-  offlineNotice: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 217, 165, 0.08)', padding: 12, borderRadius: 12, marginBottom: 30, borderWidth: 1, borderColor: 'rgba(0, 217, 165, 0.2)' },
+
+  // Offline notice
+  offlineNotice: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 217, 165, 0.08)', padding: 12, borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(0, 217, 165, 0.2)' },
   offlineText: { color: '#00D9A5', fontSize: 14, marginLeft: 10, fontWeight: '600' },
+
+  // ── Import CTA card ────────────────────────────────────────────────────────
+  importCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FF6B6B',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  importCardDisabled: { backgroundColor: '#ccc', shadowColor: '#000', shadowOpacity: 0.1 },
+  importCardLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  importIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  importCardText: { flex: 1 },
+  importCardTitle: { fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 3 },
+  importCardSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+
+  // Progress bar
+  progressContainer: {
+    backgroundColor: '#fff5f5',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,107,0.2)',
+  },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  progressText: { fontSize: 13, color: '#555', fontWeight: '600' },
+  progressPct: { fontSize: 13, color: '#FF6B6B', fontWeight: '700' },
+  progressBarBg: { height: 6, backgroundColor: '#eee', borderRadius: 3, overflow: 'hidden' },
+  progressBarFill: { height: 6, backgroundColor: '#FF6B6B', borderRadius: 3 },
+
+  // Sections
   section: { marginBottom: 30 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#888', marginBottom: 12, marginLeft: 4, textTransform: 'uppercase', letterSpacing: 1 },
+
+  // Menu items
   menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 217, 165, 0.03)', padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)' },
   menuIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   menuContent: { flex: 1 },
@@ -288,12 +370,8 @@ const styles = StyleSheet.create({
   badge: { backgroundColor: '#FF6B6B', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
   badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   menuItemDisabled: { opacity: 0.5 },
-  // Import progress bar
-  progressContainer: { marginTop: 4, marginBottom: 8, paddingHorizontal: 4 },
-  progressText: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 6 },
-  progressBarBg: { height: 4, backgroundColor: '#eee', borderRadius: 2, overflow: 'hidden' },
-  progressBarFill: { height: 4, backgroundColor: '#00D9A5', borderRadius: 2 },
-  // Language toggle pill
+
+  // Language toggle
   langToggle: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
   langOption: { fontSize: 14, fontWeight: '700', color: '#bbb' },
   langOptionActive: { color: '#9B59B6' },

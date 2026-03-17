@@ -123,7 +123,7 @@ npx expo run:ios
 
 - You need an Apple Developer account (free for dev, paid for App Store).
 - Connect your device via USB.
-- In Xcode, select your device as the target and run the app.
+- In Xcode, select your device as the target and run the app. (Release Build)
 - You may need to trust your developer certificate on the device.
 
 ---

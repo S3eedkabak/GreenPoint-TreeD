@@ -143,14 +143,14 @@ const MapScreen = ({ navigation, route }) => {
 
     const accuracy = online
       ? Location.Accuracy.High
-      : Location.Accuracy.BestForNavigation;
+      : Location.Accuracy.BestForNavigation; // offline
 
     try {
       locationWatchRef.current = await Location.watchPositionAsync( // watchposition async, GPS chip pushes updates continuously, we subscribe to them and update the map accordingly
         {
           accuracy,
           distanceInterval: 5,
-          timeInterval: 5000,
+          timeInterval: 2000,
         },
         (location) => updateLocation(location)
       );
