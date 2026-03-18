@@ -335,6 +335,9 @@ export const translations = {
       gpsLocation: 'GPS Location *',
       species: 'Species *',
       dbhOptional: 'DBH (cm) - Optional',
+      stemDiameter: 'Stem Diameter *',
+      measureWithCamera: 'Measure with camera',
+      captured: 'captured',
 
       getCurrentLocation: 'Get Current Location',
       coords: (lat, lon) => `N: ${lat.toFixed(5)}, E: ${lon.toFixed(5)}`,
@@ -701,6 +704,9 @@ export const translations = {
       gpsLocation: 'GPS-Position *',
       species: 'Art *',
       dbhOptional: 'BHD (cm) - optional',
+      stemDiameter: 'Stammdurchmesser *',
+      measureWithCamera: 'Mit Kamera messen',
+      captured: 'erfasst',
 
       getCurrentLocation: 'Aktuellen Standort holen',
       coords: (lat, lon) => `N: ${lat.toFixed(5)}, E: ${lon.toFixed(5)}`,
