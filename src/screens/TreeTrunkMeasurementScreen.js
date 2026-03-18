@@ -11,7 +11,7 @@ import { useTranslation } from '../utils/useTranslation';
 const CREDIT_CARD_WIDTH_MM = 85.6;
 
 const TreeTrunkMeasurementScreen = ({ route, navigation }) => {
-  const { latitude, longitude } = route.params || {};
+  const { latitude, longitude, mode, treeId } = route.params || {};
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
@@ -96,7 +96,11 @@ const TreeTrunkMeasurementScreen = ({ route, navigation }) => {
 
   const handleUseDbh = () => {
     if (calculatedDbh != null && calculatedDbh > 0) {
-      navigation.navigate('AddTree', { latitude, longitude, measuredDbh: calculatedDbh });
+      if (mode === 'edit' && treeId) {
+        navigation.navigate('EditTree', { treeId, measuredDbh: calculatedDbh });
+      } else {
+        navigation.navigate('AddTree', { latitude, longitude, measuredDbh: calculatedDbh });
+      }
     }
   };
 
