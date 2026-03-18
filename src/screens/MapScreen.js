@@ -143,14 +143,14 @@ const MapScreen = ({ navigation, route }) => {
 
     const accuracy = online
       ? Location.Accuracy.High
-      : Location.Accuracy.BestForNavigation; // offline
+      : Location.Accuracy.BestForNavigation;
 
     try {
       locationWatchRef.current = await Location.watchPositionAsync( // watchposition async, GPS chip pushes updates continuously, we subscribe to them and update the map accordingly
         {
           accuracy,
           distanceInterval: 5,
-          timeInterval: 2000,
+          timeInterval: 5000,
         },
         (location) => updateLocation(location)
       );
@@ -552,6 +552,11 @@ const MapScreen = ({ navigation, route }) => {
         <Ionicons name="map-outline" size={22} color="#000" />
       </TouchableOpacity>
 
+      {/* Pattern Match button */}
+      <TouchableOpacity style={styles.patternMatchBtn} onPress={() => navigation.navigate('PatternMatch')}>
+        <Ionicons name="git-merge-outline" size={22} color="#000" />
+      </TouchableOpacity>
+
       {/* Recenter button */}
       <TouchableOpacity style={styles.recenterButton} onPress={centerOnUser}>
         <Ionicons name="locate" size={24} color="#000" />
@@ -609,7 +614,8 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: '600' },
   offlineBanner: { position: 'absolute', bottom: 85, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,107,107,0.95)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, gap: 6 },
   offlineText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  offlineMapsBtn: { position: 'absolute', bottom: 200, right: 20, backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  offlineMapsBtn: { position: 'absolute', bottom: 270, right: 20, backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  patternMatchBtn: { position: 'absolute', bottom: 200, right: 20, backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
   recenterButton: { position: 'absolute', bottom: 130, right: 20, backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
   fabContainer: { position: 'absolute', bottom: 110, alignSelf: 'center' },
   fab: { backgroundColor: '#fff', height: 70, width: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10 },

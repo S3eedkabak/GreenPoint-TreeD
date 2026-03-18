@@ -809,22 +809,22 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     // ── Greedy spatial clustering ──────────────────────────────────────────
     function clusterTrees(trees, radiusMetres) {
-      const assigned = new Array(trees.length).fill(false);
-      const clusters = [];
-      for (let i = 0; i < trees.length; i++) {
+      const assigned = new Array(trees.length).fill(false); // track which trees are already clustered
+      const clusters = []; 
+      for (let i = 0; i < trees.length; i++) { // for each unassigned tree, form a cluster with nearby trees
         if (assigned[i]) continue;
         const members = [trees[i]];
         assigned[i] = true;
-        for (let j = i + 1; j < trees.length; j++) {
+        for (let j = i + 1; j < trees.length; j++) { // check subsequent trees for proximity
           if (assigned[j]) continue;
-          if (haversineMetres(trees[i], trees[j]) <= radiusMetres) {
+          if (haversineMetres(trees[i], trees[j]) <= radiusMetres) { // if within radius, add to cluster and mark as assigned
             members.push(trees[j]);
             assigned[j] = true;
           }
         }
-        const lat = members.reduce((s, t) => s + t.northing, 0) / members.length;
-        const lng = members.reduce((s, t) => s + t.easting,  0) / members.length;
-        clusters.push({ lat, lng, count: members.length, treeIds: members.map(t => t.tree_id) });
+        const lat = members.reduce((s, t) => s + t.northing, 0) / members.length; // average lat/lng of cluster members
+        const lng = members.reduce((s, t) => s + t.easting,  0) / members.length; 
+        clusters.push({ lat, lng, count: members.length, treeIds: members.map(t => t.tree_id) }); // store cluster info
       }
       return clusters;
     }
@@ -835,13 +835,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     function findSplitZoom(clusterLat, clusterLng, members, currentZoom) {
       // Radius thresholds per zoom (same logic as renderTrees)
       const radiusForZoom = (z) => {
-        if (z <= 10) return 15000;
-        if (z <= 12) return 80;
+        if (z <= 10) return 15000; // city-level clusters up to zoom 10
+        if (z <= 12) return 80; // district-level clusters up to zoom 12
         return 0; // zoom >= 13 → individual dots, always "split"
       };
 
       for (let z = currentZoom + 1; z <= 13; z++) {
-        const r = radiusForZoom(z);
+        const r = radiusForZoom(z); // get clustering radius for this zoom level
         if (r === 0) return z; // zoom 13 always shows individual
         // Check if members would still all fall in one cluster at this radius
         const subclusters = clusterTrees(members, r);
@@ -1114,9 +1114,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     map.on('moveend', function () {
       var b = map.getBounds();
       sendMessage({
-        type: 'boundsChanged',
+        type: 'boundsChanged', // Bounds changed, send to MapScreen
         bounds: {
-          minLat: b.getSouth(), maxLat: b.getNorth(),
+          minLat: b.getSouth(), maxLat: b.getNorth(), // Min Max 
           minLng: b.getWest(),  maxLng: b.getEast(),
         }
       });

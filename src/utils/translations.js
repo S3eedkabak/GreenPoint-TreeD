@@ -115,7 +115,7 @@ export const translations = {
         importSubtitle: 'Load trees from CSV file',
         application: 'Application',
         about: 'About Tree-D',
-        aboutSubtitle: 'Version 1.0.0 - Offline-First',
+        aboutSubtitle: 'Version 1.0.0 - Offline-First', // refrence the text in Settings screen
         aboutBody: 'Forestry Data Collection App\nVersion 1.0.0\n\nWorks 100% offline!',
         howItWorks: 'How It Works',
         howItWorksSubtitle: 'Offline-first architecture',
@@ -257,6 +257,52 @@ export const translations = {
           `DBH ${dbh} cm seems wrong. Check that card and trunk taps are correct.`,
       },
   
+      // PatternMatchScreen
+      patternMatch: {
+        title: 'Pattern Match',
+        subtitle: 'Find your location using 5 trees',
+
+        treeDetails: (n) => `Tree ${n} Details`,
+        gpsLocation: 'GPS Location *',
+        species: 'Species *',
+        dbhOptional: 'DBH (cm) - Optional',
+
+        getCurrentLocation: 'Get Current Location',
+        coords: (lat, lon) => `N: ${lat.toFixed(5)}, E: ${lon.toFixed(5)}`,
+
+        selectSpecies: 'Select species',
+        dbhPlaceholder: 'Diameter at breast height',
+
+        prevTree: 'Prev Tree',
+        nextTree: 'Next Tree',
+
+        findMatch: 'Find Match',
+
+        permissionDenied: 'Permission Denied',
+        locationPermissionRequired: 'Location permission is required.',
+        locationFetched: 'Location Fetched',
+        locationRecorded: (n) => `Tree ${n} location recorded successfully.`,
+        error: 'Error',
+        couldNotFetchLocation: 'Could not fetch location.',
+
+        incompleteData: 'Incomplete Data',
+        incompleteDataBody: 'Please fill in GPS and Species for all 5 trees.',
+
+        databaseTooSmall: 'Database too small',
+        databaseTooSmallBody: 'Need at least 5 trees in the database to find a pattern.',
+
+        noMatchFound: 'No Match Found',
+        noMatchFoundBody: 'Could not confidently match this pattern to the database.',
+
+        matchErrorBody: 'An error occurred during pattern matching.',
+
+        patternMatchFound: 'Pattern Match Found!',
+        obsTree: (n) => `Obs Tree ${n}`,
+        dbId: (id8) => `DB ID: ${id8}...`,
+        lat: (v) => `Lat: ${v.toFixed(5)}`,
+        returnToMap: 'Return to Map',
+      },
+
       // Common
       common: {
         ok: 'OK',
@@ -372,7 +418,7 @@ export const translations = {
         importSubtitle: 'Bäume aus CSV-Datei laden',
         application: 'Anwendung',
         about: 'Über Tree-D',
-        aboutSubtitle: 'Version 1.0.0 - Offline-First',
+        aboutSubtitle: 'Version 1.0.0 - Offline-First', // german translation of the text in Settings screen
         aboutBody: 'Forstwirtschaftliche Datenerfassungs-App\nVersion 1.0.0\n\nFunktioniert vollständig offline!',
         howItWorks: 'So funktioniert es',
         howItWorksSubtitle: 'Offline-First-Architektur',
@@ -511,6 +557,51 @@ export const translations = {
           `BHD ${dbh} cm erscheint unplausibel. Karten- und Stammtaps prüfen.`,
       },
   
+      patternMatch: {
+        title: 'Musterabgleich',
+        subtitle: 'Finde deinen Standort mit 5 Bäumen',
+
+        treeDetails: (n) => `Baum ${n} Details`,
+        gpsLocation: 'GPS-Position *',
+        species: 'Art *',
+        dbhOptional: 'BHD (cm) - optional',
+
+        getCurrentLocation: 'Aktuellen Standort holen',
+        coords: (lat, lon) => `N: ${lat.toFixed(5)}, E: ${lon.toFixed(5)}`,
+
+        selectSpecies: 'Art auswählen',
+        dbhPlaceholder: 'Brusthöhendurchmesser',
+
+        prevTree: 'Vorheriger Baum',
+        nextTree: 'Nächster Baum',
+
+        findMatch: 'Abgleich starten',
+
+        permissionDenied: 'Berechtigung verweigert',
+        locationPermissionRequired: 'Standortberechtigung ist erforderlich.',
+        locationFetched: 'Standort ermittelt',
+        locationRecorded: (n) => `Standort von Baum ${n} wurde gespeichert.`,
+        error: 'Fehler',
+        couldNotFetchLocation: 'Standort konnte nicht ermittelt werden.',
+
+        incompleteData: 'Unvollständige Daten',
+        incompleteDataBody: 'Bitte GPS und Art für alle 5 Bäume ausfüllen.',
+
+        databaseTooSmall: 'Datenbank zu klein',
+        databaseTooSmallBody: 'Es werden mindestens 5 Bäume in der Datenbank benötigt, um ein Muster zu finden.',
+
+        noMatchFound: 'Kein Treffer',
+        noMatchFoundBody: 'Dieses Muster konnte nicht sicher der Datenbank zugeordnet werden.',
+
+        matchErrorBody: 'Beim Musterabgleich ist ein Fehler aufgetreten.',
+
+        patternMatchFound: 'Muster gefunden!',
+        obsTree: (n) => `Beobachtung ${n}`,
+        dbId: (id8) => `DB-ID: ${id8}...`,
+        lat: (v) => `Lat: ${v.toFixed(5)}`,
+        returnToMap: 'Zurück zur Karte',
+      },
+
       common: {
         ok: 'OK',
         cancel: 'Abbrechen',

@@ -44,7 +44,7 @@ export const initDatabase = async () => { // Initialize DB
       CREATE INDEX IF NOT EXISTS idx_trees_date ON trees(date);
       CREATE INDEX IF NOT EXISTS idx_trees_species ON trees(species);
       CREATE INDEX IF NOT EXISTS idx_trees_coords ON trees(northing, easting);
-    `);
+    `); // schema with indexes, takes into account the need for fast queries on tree_id, date, species, and spatial coordinates
     
     console.log('Local database initialized (data persists between restarts)');
   } catch (error) {
@@ -120,10 +120,10 @@ export const getAllTrees = async (filters = {}) => { // retrieve all trees or wi
 };
 
 // Returns a single integer — never loads rows into memory.
-export const getTreeCount = async () => {
+export const getTreeCount = async () => { // get total count of trees in database for settings screen
   try {
     const database = await openDatabase();
-    const result = await database.getFirstAsync('SELECT COUNT(*) as count FROM trees');
+    const result = await database.getFirstAsync('SELECT COUNT(*) as count FROM trees'); //  runs just a single COUNT query, returns { count: 123 } or similar
     return result ? result.count : 0;
   } catch (error) {
     console.error('Error getting tree count:', error);
@@ -133,7 +133,7 @@ export const getTreeCount = async () => {
 
 // Returns only trees whose northing/easting fall within the given bounding box.
 // Uses the idx_trees_coords composite index for fast range scans.
-export const getTreesInBounds = async (minLat, maxLat, minLng, maxLng) => {
+export const getTreesInBounds = async (minLat, maxLat, minLng, maxLng) => { // fetch trees within map bounds for efficient rendering
   try {
     const database = await openDatabase();
     const trees = await database.getAllAsync(
@@ -218,7 +218,7 @@ export const exportToCSV = async () => {
 
 // Batch size for transactional inserts. 500 rows per transaction balances
 // memory pressure against SQLite transaction overhead on mobile hardware.
-const IMPORT_BATCH_SIZE = 500;
+const IMPORT_BATCH_SIZE = 500; //  avoid memory issues by processing in batches of 500 rows, with a single transaction per batch for efficiency
 
 export const importFromCSV = async (csvContent, onProgress = null) => {
   try {
@@ -267,9 +267,9 @@ export const importFromCSV = async (csvContent, onProgress = null) => {
     const database = await openDatabase();
 
     // ── Process in batches ───────────────────────────────────────────────────
-    for (let batchStart = 0; batchStart < total; batchStart += IMPORT_BATCH_SIZE) {
+    for (let batchStart = 0; batchStart < total; batchStart += IMPORT_BATCH_SIZE) { // start at 0 till 500
       const batchEnd  = Math.min(batchStart + IMPORT_BATCH_SIZE, total);
-      const batch     = dataLines.slice(batchStart, batchEnd);
+      const batch     = dataLines.slice(batchStart, batchEnd); // get the current batch of lines to process
 
       // Validate all rows in this batch before opening a transaction.
       // Invalid rows are collected as errors and excluded from the insert.
@@ -280,9 +280,9 @@ export const importFromCSV = async (csvContent, onProgress = null) => {
         try {
           const values = parseCSVLine(raw);
 
-          const treeId   = values[0]?.trim() || generateUUID();
-          const date     = values[1]?.trim() || new Date().toISOString().split('T')[0];
-          const northing = parseFloat(values[2]?.trim());
+          const treeId   = values[0]?.trim() || generateUUID(); // generate UUID if missing, but still validate other fields to avoid silent duplicates
+          const date     = values[1]?.trim() || new Date().toISOString().split('T')[0]; // default to current date if missing
+          const northing = parseFloat(values[2]?.trim()); // coordinates must be valid numbers, no defaults
           const easting  = parseFloat(values[3]?.trim());
           const species  = values[4]?.trim();
           const dbh      = values[5]?.trim() ? parseFloat(values[5].trim()) : null;
@@ -325,7 +325,7 @@ export const importFromCSV = async (csvContent, onProgress = null) => {
       let batchImported = 0;
       let batchSkipped  = 0;
 
-      await database.withTransactionAsync(async () => {
+      await database.withTransactionAsync(async () => { // wrap the entire batch in a single transaction for performance
         for (const row of validRows) {
           const result = await database.runAsync(
             `INSERT OR IGNORE INTO trees (

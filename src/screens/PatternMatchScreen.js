@@ -18,6 +18,7 @@ import * as Location from 'expo-location';
 
 import { getAllTrees } from '../database/db';
 import { findPatternMatch } from '../utils/patternMatching';
+import { useTranslation } from '../utils/useTranslation';
 
 const SPECIES_OPTIONS = [
   { label: 'Oak', value: 'Oak' },
@@ -28,7 +29,8 @@ const SPECIES_OPTIONS = [
 ];
 
 const PatternMatchScreen = ({ navigation }) => {
-  // We need exactly 5 tree observations for the pattern match
+  const { t } = useTranslation();
+
   const [observations, setObservations] = useState([
     { id: 1, latitude: null, longitude: null, species: '', dbh: '' },
     { id: 2, latitude: null, longitude: null, species: '', dbh: '' },
@@ -63,7 +65,7 @@ const PatternMatchScreen = ({ navigation }) => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required.');
+        Alert.alert(t('patternMatch.permissionDenied'), t('patternMatch.locationPermissionRequired'));
         return;
       }
 
@@ -73,10 +75,10 @@ const PatternMatchScreen = ({ navigation }) => {
 
       updateObservation(index, 'latitude', location.coords.latitude);
       updateObservation(index, 'longitude', location.coords.longitude);
-      Alert.alert('Location Fetched', `Tree ${index + 1} location recorded successfully.`);
+      Alert.alert(t('patternMatch.locationFetched'), t('patternMatch.locationRecorded')(index + 1));
     } catch (error) {
       console.error('Error fetching location', error);
-      Alert.alert('Error', 'Could not fetch location.');
+      Alert.alert(t('patternMatch.error'), t('patternMatch.couldNotFetchLocation'));
     }
   };
 
@@ -86,7 +88,7 @@ const PatternMatchScreen = ({ navigation }) => {
 
   const handleMatchPattern = async () => {
     if (!allTreesLogged) {
-      Alert.alert('Incomplete Data', 'Please fill in GPS and Species for all 5 trees.');
+      Alert.alert(t('patternMatch.incompleteData'), t('patternMatch.incompleteDataBody'));
       return;
     }
 
@@ -94,15 +96,13 @@ const PatternMatchScreen = ({ navigation }) => {
     setMatchResult(null);
 
     try {
-      // 1. Fetch DB trees
       const dbTrees = await getAllTrees();
       if (dbTrees.length < 5) {
-        Alert.alert('Database too small', 'Need at least 5 trees in the database to find a pattern.');
+        Alert.alert(t('patternMatch.databaseTooSmall'), t('patternMatch.databaseTooSmallBody'));
         setIsMatching(false);
         return;
       }
 
-      // 2. Format observations
       const formattedObs = observations.map(obs => ({
         latitude: obs.latitude,
         longitude: obs.longitude,
@@ -110,8 +110,6 @@ const PatternMatchScreen = ({ navigation }) => {
         dbh: obs.dbh ? parseFloat(obs.dbh) : null,
       }));
 
-      // 3. Run algorithm
-      // Wrapping in setTimeout to allow UI to render spinner before heavy blocking task
       setTimeout(() => {
         const matches = findPatternMatch(formattedObs, dbTrees);
         setIsMatching(false);
@@ -119,13 +117,13 @@ const PatternMatchScreen = ({ navigation }) => {
         if (matches) {
           setMatchResult(matches);
         } else {
-          Alert.alert('No Match Found', 'Could not confidently match this pattern to the database.');
+          Alert.alert(t('patternMatch.noMatchFound'), t('patternMatch.noMatchFoundBody'));
         }
       }, 100);
 
     } catch (error) {
       console.error('Match error:', error);
-      Alert.alert('Error', 'An error occurred during pattern matching.');
+      Alert.alert(t('patternMatch.error'), t('patternMatch.matchErrorBody'));
       setIsMatching(false);
     }
   };
@@ -134,12 +132,11 @@ const PatternMatchScreen = ({ navigation }) => {
     const obs = observations[activeTreeIndex];
     return (
       <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Tree {activeTreeIndex + 1} Details</Text>
+        <Text style={styles.sectionTitle}>{t('patternMatch.treeDetails')(activeTreeIndex + 1)}</Text>
 
-        {/* GPS Location */}
         <View style={styles.inputContainer}>
           <Text style={styles.label}>
-            <Ionicons name="location-outline" size={16} color="#00D9A5" /> GPS Location *
+            <Ionicons name="location-outline" size={16} color="#00D9A5" /> {t('patternMatch.gpsLocation')}
           </Text>
           <TouchableOpacity
             style={[styles.locationBtn, obs.latitude && styles.locationBtnSuccess]}
@@ -147,15 +144,16 @@ const PatternMatchScreen = ({ navigation }) => {
           >
             <Ionicons name={obs.latitude ? "checkmark-circle" : "locate"} size={20} color={obs.latitude ? "#fff" : "#00D9A5"} />
             <Text style={[styles.locationBtnText, obs.latitude && { color: '#fff' }]}>
-              {obs.latitude ? `N: ${obs.latitude.toFixed(5)}, E: ${obs.longitude.toFixed(5)}` : 'Get Current Location'}
+              {obs.latitude
+                ? t('patternMatch.coords')(obs.latitude, obs.longitude)
+                : t('patternMatch.getCurrentLocation')}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Species */}
         <View style={[styles.inputContainer, { zIndex: 1000 }]}>
           <Text style={styles.label}>
-            <Ionicons name="flower-outline" size={16} color="#00D9A5" /> Species *
+            <Ionicons name="flower-outline" size={16} color="#00D9A5" /> {t('patternMatch.species')}
           </Text>
           <DropDownPicker
             open={speciesDropdownOpen}
@@ -167,7 +165,7 @@ const PatternMatchScreen = ({ navigation }) => {
               updateObservation(activeTreeIndex, 'species', val);
             }}
             setItems={setSpeciesOptions}
-            placeholder="Select species"
+            placeholder={t('patternMatch.selectSpecies')}
             style={styles.dropdown}
             dropDownContainerStyle={styles.dropdownContainer}
             zIndex={1000}
@@ -175,15 +173,14 @@ const PatternMatchScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* DBH */}
         <View style={[styles.inputContainer, { zIndex: 1 }]}>
           <Text style={styles.label}>
-            <Ionicons name="ellipse-outline" size={16} color="#888" /> DBH (cm) - Optional
+            <Ionicons name="ellipse-outline" size={16} color="#888" /> {t('patternMatch.dbhOptional')}
           </Text>
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder="Diameter at breast height"
+              placeholder={t('patternMatch.dbhPlaceholder')}
               placeholderTextColor="#666"
               value={obs.dbh}
               onChangeText={(text) => updateObservation(activeTreeIndex, 'dbh', text)}
@@ -192,7 +189,6 @@ const PatternMatchScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Navigation between trees */}
         <View style={styles.treeNavContainer}>
           <TouchableOpacity
             style={[styles.navBtn, activeTreeIndex === 0 && styles.navBtnDisabled]}
@@ -200,7 +196,7 @@ const PatternMatchScreen = ({ navigation }) => {
             onPress={() => setActiveTreeIndex(prev => prev - 1)}
           >
             <Ionicons name="arrow-back" size={20} color={activeTreeIndex === 0 ? "#ccc" : "#00D9A5"} />
-            <Text style={[styles.navBtnText, activeTreeIndex === 0 && { color: '#ccc' }]}>Prev Tree</Text>
+            <Text style={[styles.navBtnText, activeTreeIndex === 0 && { color: '#ccc' }]}>{t('patternMatch.prevTree')}</Text>
           </TouchableOpacity>
 
           <Text style={styles.treeCountText}>{activeTreeIndex + 1} / 5</Text>
@@ -210,7 +206,7 @@ const PatternMatchScreen = ({ navigation }) => {
             disabled={activeTreeIndex === 4}
             onPress={() => setActiveTreeIndex(prev => prev + 1)}
           >
-            <Text style={[styles.navBtnText, activeTreeIndex === 4 && { color: '#ccc' }]}>Next Tree</Text>
+            <Text style={[styles.navBtnText, activeTreeIndex === 4 && { color: '#ccc' }]}>{t('patternMatch.nextTree')}</Text>
             <Ionicons name="arrow-forward" size={20} color={activeTreeIndex === 4 ? "#ccc" : "#00D9A5"} />
           </TouchableOpacity>
         </View>
@@ -224,15 +220,15 @@ const PatternMatchScreen = ({ navigation }) => {
 
     return (
       <View style={styles.resultContainer}>
-        <Text style={styles.resultTitle}>Pattern Match Found!</Text>
+        <Text style={styles.resultTitle}>{t('patternMatch.patternMatchFound')}</Text>
         {matchResult.map((match, i) => (
           <View key={i} style={styles.resultRow}>
-            <Text style={styles.resultObsText}>Obs Tree {match.observationIndex + 1}</Text>
+            <Text style={styles.resultObsText}>{t('patternMatch.obsTree')(match.observationIndex + 1)}</Text>
             <Ionicons name="arrow-forward" size={16} color="#00D9A5" style={{ marginHorizontal: 10 }} />
             <View style={styles.resultDbCard}>
-              <Text style={styles.resultDbText}>DB ID: {match.dbTree.tree_id.substring(0, 8)}...</Text>
+              <Text style={styles.resultDbText}>{t('patternMatch.dbId')(match.dbTree.tree_id.substring(0, 8))}</Text>
               <Text style={styles.resultDbSubText}>{match.dbTree.species}</Text>
-              <Text style={styles.resultDbSubText}>Lat: {match.dbTree.northing.toFixed(5)}</Text>
+              <Text style={styles.resultDbSubText}>{t('patternMatch.lat')(match.dbTree.northing)}</Text>
             </View>
           </View>
         ))}
@@ -240,7 +236,7 @@ const PatternMatchScreen = ({ navigation }) => {
           style={styles.doneBtn}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.doneBtnText}>Return to Map</Text>
+          <Text style={styles.doneBtnText}>{t('patternMatch.returnToMap')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -258,11 +254,10 @@ const PatternMatchScreen = ({ navigation }) => {
             <View style={styles.iconCircle}>
               <Ionicons name="git-merge" size={40} color="#00D9A5" />
             </View>
-            <Text style={styles.title}>Pattern Match</Text>
-            <Text style={styles.subtitle}>Find your location using 5 trees</Text>
+            <Text style={styles.title}>{t('patternMatch.title')}</Text>
+            <Text style={styles.subtitle}>{t('patternMatch.subtitle')}</Text>
           </View>
 
-          {/* Progress Indicators */}
           <View style={styles.progressContainer}>
             {observations.map((obs, i) => {
               const isComplete = obs.latitude !== null && obs.species !== '';
@@ -297,7 +292,7 @@ const PatternMatchScreen = ({ navigation }) => {
               ) : (
                 <>
                   <Ionicons name="search" size={24} color="#000" />
-                  <Text style={styles.matchButtonText}>Find Match</Text>
+                  <Text style={styles.matchButtonText}>{t('patternMatch.findMatch')}</Text>
                 </>
               )}
             </TouchableOpacity>
