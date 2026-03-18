@@ -11,8 +11,9 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import TreeHeightMeasurementScreen from './src/screens/TreeHeightMeasurementScreen';
 import TreeTrunkMeasurementScreen from './src/screens/TreeTrunkMeasurementScreen';
 import RegionDownloadScreen from './src/screens/RegionDownloadScreen';
+import PatternMatchScreen from './src/screens/PatternMatchScreen';
 import { initDatabase } from './src/database/db';
-import { LanguageProvider } from './src/utils/useTranslation';
+import { LanguageProvider } from './src/utils/useTranslation'; // New 
 
 const Stack = createStackNavigator();
 
@@ -113,6 +114,11 @@ export default function App() {
               headerBackTitle: 'Back',
               detachPreviousScreen: false,
             }}
+          />
+          <Stack.Screen
+            name="PatternMatch"
+            component={PatternMatchScreen}
+            options={{ title: 'Pattern Match', headerBackTitle: 'Back' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

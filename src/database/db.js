@@ -46,8 +46,8 @@ export const initDatabase = async () => { // Initialize DB
       CREATE INDEX IF NOT EXISTS idx_trees_coords ON trees(northing, easting);
 
       -- Edited/updated versions for a specific tree_id.
-      -- We keep the original record in `trees` and store each edit snapshot
-      -- in `tree_versions` so the user can view original vs updated versions.
+      -- We keep the original record in 'trees' and store each edit snapshot
+      -- in 'tree_versions' so the user can view original vs updated versions.
       CREATE TABLE IF NOT EXISTS tree_versions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tree_id TEXT NOT NULL,
@@ -68,7 +68,7 @@ export const initDatabase = async () => { // Initialize DB
 
       CREATE INDEX IF NOT EXISTS idx_tree_versions_tree_id ON tree_versions(tree_id);
       CREATE INDEX IF NOT EXISTS idx_tree_versions_tree_id_version ON tree_versions(tree_id, version_number);
-    `);
+    `); // schema with indexes, takes into account the need for fast queries on tree_id, date, species, and spatial coordinates
     
     console.log('Local database initialized (data persists between restarts)');
   } catch (error) {
@@ -232,10 +232,10 @@ export const getAllTrees = async (filters = {}) => { // retrieve all trees or wi
 };
 
 // Returns a single integer — never loads rows into memory.
-export const getTreeCount = async () => {
+export const getTreeCount = async () => { // get total count of trees in database for settings screen
   try {
     const database = await openDatabase();
-    const result = await database.getFirstAsync('SELECT COUNT(*) as count FROM trees');
+    const result = await database.getFirstAsync('SELECT COUNT(*) as count FROM trees'); //  runs just a single COUNT query, returns { count: 123 } or similar
     return result ? result.count : 0;
   } catch (error) {
     console.error('Error getting tree count:', error);
@@ -245,7 +245,7 @@ export const getTreeCount = async () => {
 
 // Returns only trees whose northing/easting fall within the given bounding box.
 // Uses the idx_trees_coords composite index for fast range scans.
-export const getTreesInBounds = async (minLat, maxLat, minLng, maxLng) => {
+export const getTreesInBounds = async (minLat, maxLat, minLng, maxLng) => { // fetch trees within map bounds for efficient rendering
   try {
     const database = await openDatabase();
     const trees = await database.getAllAsync(
@@ -301,6 +301,7 @@ export const exportToCSV = async () => {
     const trees = await getAllTrees();
     const database = await openDatabase();
 
+    // Also fetch all versions so edited snapshots are included in the export
     const versions = await database.getAllAsync(
       `SELECT *
        FROM tree_versions
@@ -310,10 +311,11 @@ export const exportToCSV = async () => {
     if (trees.length === 0 && versions.length === 0) {
       throw new Error('No trees to export');
     }
-
-    // CSV header matching exact specification (must match import validation)
+    
+    // CSV header matching exact specification
     let csvContent = 'Tree ID,Date,Northing,Easting,Species,DBH,Tree height,Crown height,Crown radius,Crown completeness,Tags\n';
 
+    // Group versions by tree_id for quick lookup when appending after each original
     const versionsByTreeId = {};
     versions.forEach(v => {
       if (!versionsByTreeId[v.tree_id]) versionsByTreeId[v.tree_id] = [];
@@ -344,7 +346,7 @@ export const exportToCSV = async () => {
       vers.forEach(v => appendRow(v));
     });
 
-    // 2) Fallback: if versions exist for a tree_id that isn't present in `trees`,
+    // 2) Fallback: if versions exist for a tree_id that isn't in 'trees',
     //    export them anyway (import will recreate the missing original as the earliest row).
     Object.keys(versionsByTreeId).forEach(treeId => {
       if (exportedTreeIds.has(treeId)) return;
@@ -360,7 +362,7 @@ export const exportToCSV = async () => {
 
 // Batch size for transactional inserts. 500 rows per transaction balances
 // memory pressure against SQLite transaction overhead on mobile hardware.
-const IMPORT_BATCH_SIZE = 500;
+const IMPORT_BATCH_SIZE = 500; //  avoid memory issues by processing in batches of 500 rows, with a single transaction per batch for efficiency
 
 export const importFromCSV = async (csvContent, onProgress = null) => {
   try {
@@ -400,42 +402,41 @@ export const importFromCSV = async (csvContent, onProgress = null) => {
       if (line) dataLines.push({ raw: line, lineIndex: i });
     }
 
-    const total = dataLines.length;
-    let imported = 0;
-    let skipped = 0;
+    const total      = dataLines.length;
+    let imported     = 0;
+    let skipped      = 0;
     const errors     = [];
     const errorDetails = [];
 
     const database = await openDatabase();
 
-    // Parse & validate all rows first, then group by tree_id so we can
-    // restore edits into `tree_versions` instead of losing them to the
-    // `trees.tree_id UNIQUE` constraint.
-    const parsedRows = [];
+    // ── Process in batches ───────────────────────────────────────────────────
+    for (let batchStart = 0; batchStart < total; batchStart += IMPORT_BATCH_SIZE) { // start at 0 till 500
+      const batchEnd  = Math.min(batchStart + IMPORT_BATCH_SIZE, total);
+      const batch     = dataLines.slice(batchStart, batchEnd); // get the current batch of lines to process
 
-    // ── Process in batches (parsing/validation only) ─────────────────────────
-    for (let batchStart = 0; batchStart < total; batchStart += IMPORT_BATCH_SIZE) {
-      const batchEnd = Math.min(batchStart + IMPORT_BATCH_SIZE, total);
-      const batch = dataLines.slice(batchStart, batchEnd);
+      // Validate all rows in this batch before opening a transaction.
+      // Invalid rows are collected as errors and excluded from the insert.
+      const validRows = [];
 
       for (const { raw, lineIndex } of batch) {
         const rowNum = lineIndex + 1; // 1-based for user-facing messages
         try {
           const values = parseCSVLine(raw);
 
-          const treeId = values[0]?.trim() || generateUUID();
-          const date = values[1]?.trim() || new Date().toISOString().split('T')[0];
-          const northing = parseFloat(values[2]?.trim());
-          const easting = parseFloat(values[3]?.trim());
-          const species = values[4]?.trim();
-          const dbh = values[5]?.trim() ? parseFloat(values[5].trim()) : null;
-          const treeHeight = parseFloat(values[6]?.trim());
-          const crownHeight = values[7]?.trim() ? parseFloat(values[7].trim()) : null;
-          const crownRadius = values[8]?.trim() ? parseFloat(values[8].trim()) : null;
+          const treeId   = values[0]?.trim() || generateUUID(); // generate UUID if missing, but still validate other fields to avoid silent duplicates
+          const date     = values[1]?.trim() || new Date().toISOString().split('T')[0]; // default to current date if missing
+          const northing = parseFloat(values[2]?.trim()); // coordinates must be valid numbers, no defaults
+          const easting  = parseFloat(values[3]?.trim());
+          const species  = values[4]?.trim();
+          const dbh      = values[5]?.trim() ? parseFloat(values[5].trim()) : null;
+          const treeHeight      = parseFloat(values[6]?.trim());
+          const crownHeight     = values[7]?.trim() ? parseFloat(values[7].trim()) : null;
+          const crownRadius     = values[8]?.trim() ? parseFloat(values[8].trim()) : null;
           const crownCompleteness = values[9]?.trim() ? parseFloat(values[9].trim()) : null;
-          const tags = values[10]?.trim() || null;
+          const tags     = values[10]?.trim() || null;
 
-          // ── Per-row validation ───────────────────────────────────────────
+          // ── Per-row validation (same rules as before) ──────────────────────
           if (!species) throw new Error(`Row ${rowNum}: Species is required`);
           if (isNaN(northing) || isNaN(easting)) throw new Error(`Row ${rowNum}: Invalid coordinates`);
           if (isNaN(treeHeight) || treeHeight <= 0) throw new Error(`Row ${rowNum}: Tree height must be a positive number`);
@@ -446,132 +447,53 @@ export const importFromCSV = async (csvContent, onProgress = null) => {
             throw new Error(`Row ${rowNum}: Crown completeness must be between 0 and 1`);
           }
 
-          parsedRows.push({
-            // preserve input ordering for stable tie-breaks
-            inputOrder: lineIndex,
-            tree_id: treeId,
-            date,
-            northing,
-            easting,
-            species,
-            dbh,
-            tree_height: treeHeight,
-            crown_height: crownHeight,
-            crown_radius: crownRadius,
-            crown_completeness: crownCompleteness,
-            tags,
-          });
+          validRows.push([treeId, date, northing, easting, species, dbh,
+            treeHeight, crownHeight, crownRadius, crownCompleteness, tags]);
         } catch (err) {
           errors.push(err.message);
           errorDetails.push(err.message);
         }
       }
 
+      if (validRows.length === 0) {
+        // Nothing valid in this batch — skip the transaction entirely
+        const processed = batchEnd;
+        if (onProgress) onProgress({ processed, total, imported, skipped });
+        continue;
+      }
+
+      // ── Single transaction for the whole batch ───────────────────────────
+      // INSERT OR IGNORE lets SQLite silently skip any row whose tree_id
+      // already exists (UNIQUE constraint), eliminating the need for a
+      // SELECT-per-row duplicate check.
+      let batchImported = 0;
+      let batchSkipped  = 0;
+
+      await database.withTransactionAsync(async () => { // wrap the entire batch in a single transaction for performance
+        for (const row of validRows) {
+          const result = await database.runAsync(
+            `INSERT OR IGNORE INTO trees (
+              tree_id, date, northing, easting, species, dbh,
+              tree_height, crown_height, crown_radius, crown_completeness, tags
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            row
+          );
+          // runAsync returns { changes, lastInsertRowId }.
+          // changes === 0 means IGNORE fired (duplicate tree_id).
+          if (result.changes > 0) {
+            batchImported++;
+          } else {
+            batchSkipped++;
+          }
+        }
+      });
+
+      imported += batchImported;
+      skipped  += batchSkipped;
+
       const processed = batchEnd;
       if (onProgress) onProgress({ processed, total, imported, skipped });
     }
-
-    // Group by tree_id and insert:
-    // - earliest row per tree_id -> `trees` (original)
-    // - all other rows -> `tree_versions` (edits)
-    const rowsByTreeId = {};
-    parsedRows.forEach(r => {
-      if (!rowsByTreeId[r.tree_id]) rowsByTreeId[r.tree_id] = [];
-      rowsByTreeId[r.tree_id].push(r);
-    });
-
-    const treeIds = Object.keys(rowsByTreeId);
-
-    if (treeIds.length === 0) {
-      return {
-        success: true,
-        imported: 0,
-        skipped: 0,
-        total,
-        errors: errors.length,
-        errorDetails,
-      };
-    }
-
-    await database.withTransactionAsync(async () => {
-      for (const treeId of treeIds) {
-        const group = rowsByTreeId[treeId];
-
-        // Sort by (date, inputOrder). For YYYY-MM-DD strings, lexicographic sort works.
-        const sorted = [...group].sort((a, b) => {
-          if (a.date !== b.date) return String(a.date).localeCompare(String(b.date));
-          return a.inputOrder - b.inputOrder;
-        });
-
-        const original = sorted[0];
-        const editRows = sorted.slice(1);
-
-        // Determine where to start inserting versions (append after existing).
-        const maxRow = await database.getFirstAsync(
-          'SELECT COALESCE(MAX(version_number), 0) as max_version FROM tree_versions WHERE tree_id = ?',
-          [treeId]
-        );
-        const versionStart = (maxRow?.max_version ?? 0) + 1;
-
-        // Insert original row into `trees` only once.
-        const treeInsert = await database.runAsync(
-          `INSERT OR IGNORE INTO trees (
-            tree_id, date, northing, easting, species, dbh,
-            tree_height, crown_height, crown_radius, crown_completeness, tags
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            original.tree_id,
-            original.date,
-            original.northing,
-            original.easting,
-            original.species,
-            original.dbh,
-            original.tree_height,
-            original.crown_height,
-            original.crown_radius,
-            original.crown_completeness,
-            original.tags,
-          ]
-        );
-        if (treeInsert.changes > 0) {
-          imported += 1;
-        } else {
-          skipped += 1;
-        }
-
-        // Insert edits into `tree_versions` as subsequent versions.
-        for (let i = 0; i < editRows.length; i++) {
-          const v = editRows[i];
-          const versionNumber = versionStart + i;
-          const versionInsert = await database.runAsync(
-            `INSERT OR IGNORE INTO tree_versions (
-              tree_id, version_number, date, northing, easting, species, dbh,
-              tree_height, crown_height, crown_radius, crown_completeness, tags
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              treeId,
-              versionNumber,
-              v.date,
-              v.northing,
-              v.easting,
-              v.species,
-              v.dbh,
-              v.tree_height,
-              v.crown_height,
-              v.crown_radius,
-              v.crown_completeness,
-              v.tags,
-            ]
-          );
-
-          if (versionInsert.changes > 0) {
-            imported += 1;
-          } else {
-            skipped += 1;
-          }
-        }
-      }
-    });
 
     return {
       success: true,
