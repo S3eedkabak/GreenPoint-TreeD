@@ -95,8 +95,80 @@ export const translations = {
         synced: 'Synced',
         notSynced: 'Not Synced',
         backToMap: 'Back to Map',
+        versions: 'Versions',
+        originalVersion: 'Original',
+        editVersion: (n) => `Edit v${n}`,
+        editProperties: 'Edit Properties',
+        viewRecords: 'View Records',
         error: 'Error',
         failedLoad: 'Failed to load tree data',
+      },
+
+      // TreeRecordsScreen
+      records: {
+        loading: 'Loading...',
+        title: 'Tree Records',
+        original: 'Original',
+        editVersion: (n) => `Edit v${n}`,
+        viewRecord: 'View',
+        viewRecordSub: '',
+        error: 'Error',
+        failedLoad: 'Failed to load records',
+      },
+
+      // EditTreeScreen
+      editTree: {
+        loading: 'Loading...',
+        title: 'Edit Tree',
+        subtitle: 'Update tree properties (saved as a new version)',
+        selectedLocation: 'Selected Location',
+        required: 'Required Information *',
+        optional: 'Optional Measurements',
+        species: 'Species *',
+        selectSpecies: 'Select species',
+        searchSpecies: 'Search species...',
+        treeHeight: 'Tree Height (m) *',
+        measureClinometer: 'Measure with clinometer',
+        dbh: 'DBH (cm)',
+        dbhPlaceholder: 'Diameter at breast height',
+        dbhHint: 'Stem diameter at breast height (1.3m) in centimeters',
+        measureCreditCard: 'Measure with credit card',
+        crownHeight: 'Crown Height (m)',
+        crownHeightPlaceholder: 'Height to crown base',
+        crownHeightHint: 'Height from ground to bottom of crown in meters',
+        crownRadius: 'Crown Radius (m)',
+        crownRadiusPlaceholder: 'Crown radius from trunk',
+        crownRadiusHint: 'Average radius of the tree crown in meters',
+        crownCompleteness: 'Crown Completeness (0-1)',
+        crownCompletenessPlaceholder: '0.0 to 1.0 (1 = 100% complete)',
+        crownCompletenessHint: 'Decimal value: 0 = no crown, 1 = full crown',
+        tags: 'Tags',
+        tagsPlaceholder: 'diseased;marked;boundary',
+        tagsHint: 'Separate multiple tags with semicolon (;)',
+
+        save: 'Save Edit',
+        saving: 'Saving...',
+        cancel: 'Cancel',
+
+        missingInfo: '⚠️ Missing Info',
+        speciesRequired: 'Species is required',
+        invalidHeight: '⚠️ Invalid Height',
+        heightRequired: 'Tree height is required and must be greater than 0',
+        invalidDBH: '⚠️ Invalid DBH',
+        dbhMustBePositive: 'DBH must be a positive number',
+        invalidCrownHeight: '⚠️ Invalid Crown Height',
+        crownHeightMustBePositive: 'Crown height must be a positive number',
+        invalidCrownRadius: '⚠️ Invalid Crown Radius',
+        crownRadiusMustBePositive: 'Crown radius must be a positive number',
+        invalidCrownCompleteness: '⚠️ Invalid Crown Completeness',
+        crownCompletenessMustBe: 'Crown completeness must be between 0 and 1',
+
+        success: 'Success',
+        saved: 'Edit saved as a new version.',
+        ok: 'OK',
+        error: 'Error',
+        failedLoad: 'Failed to load tree data',
+        errorSave: 'Failed to save tree edit to database',
       },
   
       // SettingsScreen
@@ -115,7 +187,7 @@ export const translations = {
         importSubtitle: 'Load trees from CSV file',
         application: 'Application',
         about: 'About Tree-D',
-        aboutSubtitle: 'Version 1.0.0 - Offline-First', // refrence the text in Settings screen
+        aboutSubtitle: 'Version 1.0.0 - Offline-First',
         aboutBody: 'Forestry Data Collection App\nVersion 1.0.0\n\nWorks 100% offline!',
         howItWorks: 'How It Works',
         howItWorksSubtitle: 'Offline-first architecture',
@@ -257,52 +329,6 @@ export const translations = {
           `DBH ${dbh} cm seems wrong. Check that card and trunk taps are correct.`,
       },
   
-      // PatternMatchScreen
-      patternMatch: {
-        title: 'Pattern Match',
-        subtitle: 'Find your location using 5 trees',
-
-        treeDetails: (n) => `Tree ${n} Details`,
-        gpsLocation: 'GPS Location *',
-        species: 'Species *',
-        dbhOptional: 'DBH (cm) - Optional',
-
-        getCurrentLocation: 'Get Current Location',
-        coords: (lat, lon) => `N: ${lat.toFixed(5)}, E: ${lon.toFixed(5)}`,
-
-        selectSpecies: 'Select species',
-        dbhPlaceholder: 'Diameter at breast height',
-
-        prevTree: 'Prev Tree',
-        nextTree: 'Next Tree',
-
-        findMatch: 'Find Match',
-
-        permissionDenied: 'Permission Denied',
-        locationPermissionRequired: 'Location permission is required.',
-        locationFetched: 'Location Fetched',
-        locationRecorded: (n) => `Tree ${n} location recorded successfully.`,
-        error: 'Error',
-        couldNotFetchLocation: 'Could not fetch location.',
-
-        incompleteData: 'Incomplete Data',
-        incompleteDataBody: 'Please fill in GPS and Species for all 5 trees.',
-
-        databaseTooSmall: 'Database too small',
-        databaseTooSmallBody: 'Need at least 5 trees in the database to find a pattern.',
-
-        noMatchFound: 'No Match Found',
-        noMatchFoundBody: 'Could not confidently match this pattern to the database.',
-
-        matchErrorBody: 'An error occurred during pattern matching.',
-
-        patternMatchFound: 'Pattern Match Found!',
-        obsTree: (n) => `Obs Tree ${n}`,
-        dbId: (id8) => `DB ID: ${id8}...`,
-        lat: (v) => `Lat: ${v.toFixed(5)}`,
-        returnToMap: 'Return to Map',
-      },
-
       // Common
       common: {
         ok: 'OK',
@@ -399,8 +425,78 @@ export const translations = {
         synced: 'Synchronisiert',
         notSynced: 'Nicht synchronisiert',
         backToMap: 'Zurück zur Karte',
+        versions: 'Versionen',
+        originalVersion: 'Original',
+        editVersion: (n) => `Bearbeitung v${n}`,
+        editProperties: 'Eigenschaften bearbeiten',
+        viewRecords: 'Aufzeichnungen ansehen',
         error: 'Fehler',
         failedLoad: 'Baumdaten konnten nicht geladen werden',
+      },
+
+      records: {
+        loading: 'Wird geladen...',
+        title: 'Baum-Aufzeichnungen',
+        original: 'Original',
+        editVersion: (n) => `Bearbeitung v${n}`,
+        viewRecord: 'Ansehen',
+        viewRecordSub: '',
+        error: 'Fehler',
+        failedLoad: 'Aufzeichnungen konnten nicht geladen werden',
+      },
+
+      editTree: {
+        loading: 'Wird geladen...',
+        title: 'Baum bearbeiten',
+        subtitle: 'Baumeigenschaften aktualisieren (als neue Version gespeichert)',
+        selectedLocation: 'Gewählter Standort',
+        required: 'Pflichtangaben *',
+        optional: 'Optionale Messungen',
+        species: 'Baumart *',
+        selectSpecies: 'Baumart wählen',
+        searchSpecies: 'Baumart suchen...',
+        treeHeight: 'Baumhöhe (m) *',
+        measureClinometer: 'Mit Klinometer messen',
+        dbh: 'BHD (cm)',
+        dbhPlaceholder: 'Brusthöhendurchmesser',
+        dbhHint: 'Stammdurchmesser in 1,3 m Höhe in Zentimetern',
+        measureCreditCard: 'Mit Kreditkarte messen',
+        crownHeight: 'Kronenhöhe (m)',
+        crownHeightPlaceholder: 'Höhe bis zur Kronenbasis',
+        crownHeightHint: 'Höhe vom Boden bis zur Kronenbasis in Metern',
+        crownRadius: 'Kronenradius (m)',
+        crownRadiusPlaceholder: 'Kronenradius vom Stamm',
+        crownRadiusHint: 'Durchschnittlicher Kronenradius in Metern',
+        crownCompleteness: 'Kronenvollständigkeit (0-1)',
+        crownCompletenessPlaceholder: '0,0 bis 1,0 (1 = vollständige Krone)',
+        crownCompletenessHint: 'Dezimalwert: 0 = keine Krone, 1 = volle Krone',
+        tags: 'Tags',
+        tagsPlaceholder: 'krank;markiert;grenze',
+        tagsHint: 'Mehrere Tags mit Semikolon (;) trennen',
+
+        save: 'Bearbeitung speichern',
+        saving: 'Wird gespeichert...',
+        cancel: 'Abbrechen',
+
+        missingInfo: '⚠️ Fehlende Angaben',
+        speciesRequired: 'Baumart ist erforderlich',
+        invalidHeight: '⚠️ Ungültige Höhe',
+        heightRequired: 'Baumhöhe ist erforderlich und muss größer als 0 sein',
+        invalidDBH: '⚠️ Ungültiger BHD',
+        dbhMustBePositive: 'BHD muss eine positive Zahl sein',
+        invalidCrownHeight: '⚠️ Ungültige Kronenhöhe',
+        crownHeightMustBePositive: 'Kronenhöhe muss eine positive Zahl sein',
+        invalidCrownRadius: '⚠️ Ungültiger Kronenradius',
+        crownRadiusMustBePositive: 'Kronenradius muss eine positive Zahl sein',
+        invalidCrownCompleteness: '⚠️ Ungültige Kronenvollständigkeit',
+        crownCompletenessMustBe: 'Kronenvollständigkeit muss zwischen 0 und 1 liegen',
+
+        success: 'Erfolg',
+        saved: 'Bearbeitung als neue Version gespeichert.',
+        ok: 'OK',
+        error: 'Fehler',
+        failedLoad: 'Baumdaten konnten nicht geladen werden',
+        errorSave: 'Konnte die Baum-Bearbeitung nicht in der Datenbank speichern',
       },
   
       settings: {
@@ -418,7 +514,7 @@ export const translations = {
         importSubtitle: 'Bäume aus CSV-Datei laden',
         application: 'Anwendung',
         about: 'Über Tree-D',
-        aboutSubtitle: 'Version 1.0.0 - Offline-First', // german translation of the text in Settings screen
+        aboutSubtitle: 'Version 1.0.0 - Offline-First',
         aboutBody: 'Forstwirtschaftliche Datenerfassungs-App\nVersion 1.0.0\n\nFunktioniert vollständig offline!',
         howItWorks: 'So funktioniert es',
         howItWorksSubtitle: 'Offline-First-Architektur',
@@ -557,51 +653,6 @@ export const translations = {
           `BHD ${dbh} cm erscheint unplausibel. Karten- und Stammtaps prüfen.`,
       },
   
-      patternMatch: {
-        title: 'Musterabgleich',
-        subtitle: 'Finde deinen Standort mit 5 Bäumen',
-
-        treeDetails: (n) => `Baum ${n} Details`,
-        gpsLocation: 'GPS-Position *',
-        species: 'Art *',
-        dbhOptional: 'BHD (cm) - optional',
-
-        getCurrentLocation: 'Aktuellen Standort holen',
-        coords: (lat, lon) => `N: ${lat.toFixed(5)}, E: ${lon.toFixed(5)}`,
-
-        selectSpecies: 'Art auswählen',
-        dbhPlaceholder: 'Brusthöhendurchmesser',
-
-        prevTree: 'Vorheriger Baum',
-        nextTree: 'Nächster Baum',
-
-        findMatch: 'Abgleich starten',
-
-        permissionDenied: 'Berechtigung verweigert',
-        locationPermissionRequired: 'Standortberechtigung ist erforderlich.',
-        locationFetched: 'Standort ermittelt',
-        locationRecorded: (n) => `Standort von Baum ${n} wurde gespeichert.`,
-        error: 'Fehler',
-        couldNotFetchLocation: 'Standort konnte nicht ermittelt werden.',
-
-        incompleteData: 'Unvollständige Daten',
-        incompleteDataBody: 'Bitte GPS und Art für alle 5 Bäume ausfüllen.',
-
-        databaseTooSmall: 'Datenbank zu klein',
-        databaseTooSmallBody: 'Es werden mindestens 5 Bäume in der Datenbank benötigt, um ein Muster zu finden.',
-
-        noMatchFound: 'Kein Treffer',
-        noMatchFoundBody: 'Dieses Muster konnte nicht sicher der Datenbank zugeordnet werden.',
-
-        matchErrorBody: 'Beim Musterabgleich ist ein Fehler aufgetreten.',
-
-        patternMatchFound: 'Muster gefunden!',
-        obsTree: (n) => `Beobachtung ${n}`,
-        dbId: (id8) => `DB-ID: ${id8}...`,
-        lat: (v) => `Lat: ${v.toFixed(5)}`,
-        returnToMap: 'Zurück zur Karte',
-      },
-
       common: {
         ok: 'OK',
         cancel: 'Abbrechen',

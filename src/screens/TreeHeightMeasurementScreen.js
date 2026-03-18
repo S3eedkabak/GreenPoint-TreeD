@@ -24,7 +24,7 @@ function computeTreeHeight(D, angleTopDeg, angleBaseDeg) {
 }
 
 const TreeHeightMeasurementScreen = ({ route, navigation }) => {
-  const { latitude, longitude } = route.params;
+  const { latitude, longitude, mode, treeId } = route.params || {};
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const cleanupMotion = useRef(null);
@@ -71,7 +71,12 @@ const TreeHeightMeasurementScreen = ({ route, navigation }) => {
   const handleDone = () => {
     const h = displayHeight;
     if (h != null && h > 0) {
-      navigation.navigate('AddTree', { latitude, longitude, measuredHeight: Math.round(h * 10) / 10 });
+      const measuredHeight = Math.round(h * 10) / 10;
+      if (mode === 'edit' && treeId) {
+        navigation.navigate('EditTree', { treeId, measuredHeight });
+      } else {
+        navigation.navigate('AddTree', { latitude, longitude, measuredHeight });
+      }
     } else {
       Alert.alert(t('heightMeasure.noHeight'), t('heightMeasure.noHeightBody'));
     }

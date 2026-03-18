@@ -5,13 +5,14 @@ import { createStackNavigator } from '@react-navigation/stack';
 import MapScreen from './src/screens/MapScreen';
 import AddTreeScreen from './src/screens/AddTreeScreen';
 import TreeDetailScreen from './src/screens/TreeDetailScreen';
+import EditTreeScreen from './src/screens/EditTreeScreen';
+import TreeRecordsScreen from './src/screens/TreeRecordsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TreeHeightMeasurementScreen from './src/screens/TreeHeightMeasurementScreen';
 import TreeTrunkMeasurementScreen from './src/screens/TreeTrunkMeasurementScreen';
 import RegionDownloadScreen from './src/screens/RegionDownloadScreen';
-import PatternMatchScreen from './src/screens/PatternMatchScreen';
 import { initDatabase } from './src/database/db';
-import { LanguageProvider } from './src/utils/useTranslation'; // New 
+import { LanguageProvider } from './src/utils/useTranslation';
 
 const Stack = createStackNavigator();
 
@@ -83,6 +84,16 @@ export default function App() {
             options={{ title: 'Tree Details', headerBackTitle: 'Back' }}
           />
           <Stack.Screen
+            name="TreeRecords"
+            component={TreeRecordsScreen}
+            options={{ title: 'Tree Records', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="EditTree"
+            component={EditTreeScreen}
+            options={{ title: 'Edit Tree', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
             name="Settings"
             component={SettingsScreen}
             options={{ title: 'Settings', headerBackTitle: 'Back' }}
@@ -102,11 +113,6 @@ export default function App() {
               headerBackTitle: 'Back',
               detachPreviousScreen: false,
             }}
-          />
-          <Stack.Screen
-            name="PatternMatch"
-            component={PatternMatchScreen}
-            options={{ title: 'Pattern Match', headerBackTitle: 'Back' }}
           />
         </Stack.Navigator>
       </NavigationContainer>
