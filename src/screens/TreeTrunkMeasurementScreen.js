@@ -97,9 +97,10 @@ const TreeTrunkMeasurementScreen = ({ route, navigation }) => {
   const handleUseDbh = () => {
     if (calculatedDbh != null && calculatedDbh > 0) {
       if (returnTo === 'PatternMatch' && typeof treeIndex === 'number') {
-        navigation.navigate({
-          name: 'PatternMatch',
-          params: { measuredDbh: calculatedDbh, treeIndex },
+        navigation.popTo('PatternMatch', {
+          measuredDbh: calculatedDbh,
+          treeIndex,
+        }, {
           merge: true,
         });
         return;
