@@ -557,7 +557,7 @@ export const translations = {
       importSubtitle: 'Bäume aus CSV-Datei laden',
       application: 'Anwendung',
       about: 'Über Tree-D',
-      aboutSubtitle: 'Version 1.0.0 - Offline-First', // german translation of the text in Settings screen
+      aboutSubtitle: 'Version 1.0.0 - Offline-First', // german translation of the text in Settings, demonstration
       aboutBody: 'Forstwirtschaftliche Datenerfassungs-App\nVersion 1.0.0\n\nFunktioniert vollständig offline!',
       howItWorks: 'So funktioniert es',
       howItWorksSubtitle: 'Offline-First-Architektur',

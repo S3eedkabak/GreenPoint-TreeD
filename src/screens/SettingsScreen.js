@@ -279,7 +279,7 @@ const SettingsScreen = ({ navigation }) => {
 
         <MenuItem
           icon="information-circle-outline"
-          title={t('settings.about')} 
+          title={t('settings.about')}
           subtitle={t('settings.aboutSubtitle')} // (t(key)) references the translation function.
           onPress={() => Alert.alert('Tree-D', t('settings.aboutBody'))}
           color="#9B59B6"

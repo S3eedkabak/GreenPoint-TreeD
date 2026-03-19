@@ -795,7 +795,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     }
 
     // ── Haversine distance in metres ───────────────────────────────────────
-    function haversineMetres(a, b) {
+    function haversineMetres(a, b) { // Method for Clustering: calculates distance between two lat/lng points in metres
       const R = 6371000;
       const dLat = (b.northing - a.northing) * Math.PI / 180;
       const dLng = (b.easting  - a.easting)  * Math.PI / 180;
@@ -933,10 +933,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
       clearAllTreeLayers();
       if (!trees || trees.length === 0) return;
 
-      const zoom = map.getZoom();
+      const zoom = map.getZoom(); // current zoom level to decide rendering style
 
       // ── Full detail ────────────────────────────────────────────────────
-      if (zoom >= 13) {
+      if (zoom >= 13) { // high zoom → show individual trees with species-based colors and active highlight
         trees.forEach(tree => {
           const isActive = tree.tree_id === activeTreeId;
           const dotClass = getTreeDotClass(tree.species, isActive);
@@ -954,20 +954,19 @@ svg.leaflet-image-layer.leaflet-interactive path {
       }
 
       // ── Clustered view ─────────────────────────────────────────────────
-      const isCityLevel   = zoom <= 10;
-      const radiusMetres  = isCityLevel ? 12000 : 80;
-      const styleClass    = isCityLevel ? 'tree-cluster-city' : 'tree-cluster-district';
-      const bubbleSize    = isCityLevel ? 60 : (zoom === 11 ? 44 : 36);
-      const countFontSize = isCityLevel ? 18 : (zoom === 11 ? 14 : 12);
+      const isCityLevel   = zoom <= 10; // looser clustering for zooms 9-10 to show city-scale
+      const radiusMetres  = isCityLevel ? 12000 : 80; // cluster radius in metres based on zoom level
+      const styleClass    = isCityLevel ? 'tree-cluster-city' : 'tree-cluster-district'; // diff 
+      const bubbleSize    = isCityLevel ? 60 : (zoom === 11 ? 44 : 36); // bubble size based on zoom
+      const countFontSize = isCityLevel ? 18 : (zoom === 11 ? 14 : 12); // font size for count label based on zoom
       const labelFontSize = isCityLevel ? 8  : (zoom === 11 ? 7  : 6.5);
+      const clusters = clusterTrees(trees, radiusMetres); // cluster trees based on current zoom level's radius threshold
 
-      const clusters = clusterTrees(trees, radiusMetres);
-
-      clusters.forEach(cluster => {
+      clusters.forEach(cluster => { // render each cluster: if single tree, show as dot; if multiple, show as bubble with count
         if (cluster.count === 1) {
           // Single isolated tree at this zoom — small dot, no label
-          const tree = trees.find(t => t.tree_id === cluster.treeIds[0]);
-          const isActive = tree && tree.tree_id === activeTreeId;
+          const tree = trees.find(t => t.tree_id === cluster.treeIds[0]); // 
+          const isActive = tree && tree.tree_id === activeTreeId; // 
           const dotClass = getTreeDotClass(tree ? tree.species : null, isActive);
           const size = 14;
           const icon = L.divIcon({
@@ -1004,7 +1003,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const marker = L.marker([cluster.lat, cluster.lng], { icon, zIndexOffset: 200 }).addTo(map);
 
         // Tap → zoom exactly to where these trees become visible separately
-        marker.on('click', () => {
+        marker.on('click', () => { // on cluster click, calculate the zoom level where this cluster would split into individual trees and zoom there
           const memberObjs = trees.filter(t => cluster.treeIds.includes(t.tree_id));
           const targetZoom = findSplitZoom(cluster.lat, cluster.lng, memberObjs, zoom);
           map.setView([cluster.lat, cluster.lng], targetZoom, { animate: true });
@@ -1113,11 +1112,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     map.on('moveend', function () {
       var b = map.getBounds();
-      sendMessage({
+      sendMessage({ // send new bounds to MapScreen so it can decide if more trees need to be loaded
         type: 'boundsChanged', // Bounds changed, send to MapScreen
         bounds: {
           minLat: b.getSouth(), maxLat: b.getNorth(), // Min Max 
-          minLng: b.getWest(),  maxLng: b.getEast(),
+          minLng: b.getWest(),  maxLng: b.getEast(), // Min Max
         }
       });
     });

@@ -22,7 +22,7 @@ import { useState, useEffect, useContext, createContext, useCallback } from 'rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { translations } from './translations';
 
-const STORAGE_KEY = '@treed_language';
+const STORAGE_KEY = '@treed_language'; // AsyncStorage key for persistance 
 const DEFAULT_LANG = 'en';
 
 // ── Context ────────────────────────────────────────────────────────────────────
@@ -36,21 +36,21 @@ export const LanguageProvider = ({ children }) => {
   const [language, setLanguageState] = useState(DEFAULT_LANG);
 
   // Load persisted language on mount
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
+  useEffect(() => { // RESTORING 
+    AsyncStorage.getItem(STORAGE_KEY) // get from AsyncStorage
       .then((saved) => {
-        if (saved === 'en' || saved === 'de') {
-          setLanguageState(saved);
+        if (saved === 'en' || saved === 'de') { // validate value
+          setLanguageState(saved); // set state if valid
         }
       })
       .catch(() => {/* ignore — use default */});
   }, []);
 
-  const setLanguage = useCallback(async (code) => {
+  const setLanguage = useCallback(async (code) => { // Setting new language
     if (code !== 'en' && code !== 'de') return;
-    setLanguageState(code);
+    setLanguageState(code); // update state immediately
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, code);
+      await AsyncStorage.setItem(STORAGE_KEY, code); 
     } catch {/* ignore storage errors */}
   }, []);
 
@@ -71,18 +71,18 @@ export const useTranslation = () => {
    * Returns the raw value — string or function — caller decides how to use it.
    */
   const t = useCallback(
-    (keyPath) => {
-      const keys = keyPath.split('.');
-      let value = translations[language];
-      for (const k of keys) {
+    (keyPath) => { // e.g. setitngs.subtitle
+      const keys = keyPath.split('.'); // ['settings', 'subtitle']
+      let value = translations[language]; // start with the current language's root
+      for (const k of keys) { // traverse down keys until we find the correct key
         if (value == null) break;
         value = value[k];
       }
       // Fallback to English
-      if (value == null) {
+      if (value == null) { // error in current language, try English
         value = translations[DEFAULT_LANG];
         for (const k of keys) {
-          if (value == null) break;
+          if (value == null) break; // if English also missing, stop
           value = value[k];
         }
       }

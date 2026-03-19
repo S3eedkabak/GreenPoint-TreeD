@@ -143,14 +143,14 @@ const MapScreen = ({ navigation, route }) => {
 
     const accuracy = online
       ? Location.Accuracy.High
-      : Location.Accuracy.BestForNavigation;
+      : Location.Accuracy.BestForNavigation; // Offline, more aggresive tracking but also battery drain
 
     try {
       locationWatchRef.current = await Location.watchPositionAsync( // watchposition async, GPS chip pushes updates continuously, we subscribe to them and update the map accordingly
         {
           accuracy,
-          distanceInterval: 5,
-          timeInterval: 5000,
+          distanceInterval: 5, // DEMONSTRATION 
+          timeInterval: 2000,
         },
         (location) => updateLocation(location)
       );
@@ -405,7 +405,7 @@ const MapScreen = ({ navigation, route }) => {
         // Updates the stored bounds and re-fetches only the trees in the
         // new viewport — the core of the fix for large datasets.
         case 'boundsChanged':
-          setMapBounds(data.bounds);
+          setMapBounds(data.bounds); // 
           loadTrees(data.bounds);
           break;
 
